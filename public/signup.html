@@ -146,37 +146,70 @@ document.getElementById('privacyOk').onclick=()=>privacyModal.classList.remove('
 termsModal.onclick=e=>{if(e.target===termsModal)termsModal.classList.remove('active');};
 privacyModal.onclick=e=>{if(e.target===privacyModal)privacyModal.classList.remove('active');};
 
-document.getElementById('signupForm').addEventListener('submit',async function(e){
+// ✅ SUBMIT HANDLER YANG SUDAH DIPERBAIKI
+document.getElementById('signupForm').addEventListener('submit', async function(e){
   e.preventDefault();
-  const username=document.getElementById('username').value.trim();
-  const fullName=document.getElementById('fullName').value.trim();
-  const emailPhone=document.getElementById('emailPhone').value.trim();
-  const password=document.getElementById('password').value;
-  const agreeTerms=document.getElementById('agreeTerms').checked;
-  const errEl=document.getElementById('errorMsg');
-  const sucEl=document.getElementById('successMsg');
-  const btn=document.getElementById('submitBtn');
-  errEl.classList.remove('show');sucEl.classList.remove('show');
-  if(!username||!fullName||!emailPhone||!password){errEl.textContent='❌ Semua field harus diisi!';errEl.classList.add('show');return;}
-  if(password.length<6){errEl.textContent='❌ Password minimal 6 karakter!';errEl.classList.add('show');return;}
-  if(!agreeTerms){errEl.textContent='❌ Setujui Syarat & Ketentuan terlebih dahulu!';errEl.classList.add('show');return;}
-  btn.disabled=true;btn.textContent='Mendaftar...';
-  try{
-    const res=await AuthAPI.register({username,fullName,emailPhone,password});
-    if(res&&res.success){
-      Auth.setSession(res.token,res.user);
-      sucEl.textContent='✅ Pendaftaran berhasil! Mengarahkan ke dashboard...';sucEl.classList.add('show');
-      setTimeout(()=>window.location.href='/user/dashboard.html',900);
-    }else{
-      errEl.textContent='❌ '+(res?.message||'Pendaftaran gagal!');errEl.classList.add('show');
-      btn.disabled=false;btn.textContent='Daftar Sekarang →';
+  
+  const username = document.getElementById('username').value.trim();
+  const fullName = document.getElementById('fullName').value.trim();
+  const emailPhone = document.getElementById('emailPhone').value.trim();
+  const password = document.getElementById('password').value;
+  const agreeTerms = document.getElementById('agreeTerms').checked;
+  const errEl = document.getElementById('errorMsg');
+  const sucEl = document.getElementById('successMsg');
+  const btn = document.getElementById('submitBtn');
+  
+  errEl.classList.remove('show');
+  sucEl.classList.remove('show');
+  
+  if (!username || !fullName || !emailPhone || !password) {
+    errEl.textContent = '❌ Semua field harus diisi!';
+    errEl.classList.add('show');
+    return;
+  }
+  if (password.length < 6) {
+    errEl.textContent = '❌ Password minimal 6 karakter!';
+    errEl.classList.add('show');
+    return;
+  }
+  if (!agreeTerms) {
+    errEl.textContent = '❌ Setujui Syarat & Ketentuan terlebih dahulu!';
+    errEl.classList.add('show');
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.textContent = 'Mendaftar...';
+  
+  try {
+    const result = await AuthAPI.register({ username, fullName, emailPhone, password });
+    
+    // ✅ PERUBAHAN: cek result.ok dan result.data.success
+    if (result && result.ok && result.data && result.data.success) {
+      Auth.setSession(result.data.token, result.data.user);
+      sucEl.textContent = '✅ Pendaftaran berhasil! Mengarahkan ke dashboard...';
+      sucEl.classList.add('show');
+      setTimeout(() => {
+        window.location.href = '/user/dashboard.html';
+      }, 900);
+    } else {
+      const errorMsg = result?.data?.message || result?.message || 'Pendaftaran gagal!';
+      errEl.textContent = '❌ ' + errorMsg;
+      errEl.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Daftar Sekarang →';
     }
-  }catch(err){
-    errEl.textContent='❌ Gagal terhubung ke server.';errEl.classList.add('show');
-    btn.disabled=false;btn.textContent='Daftar Sekarang →';
+  } catch (err) {
+    console.error('Signup error:', err);
+    errEl.textContent = '❌ Gagal terhubung ke server. Periksa koneksi Anda.';
+    errEl.classList.add('show');
+    btn.disabled = false;
+    btn.textContent = 'Daftar Sekarang →';
   }
 });
-initDarkMode();initLogo();
+
+initDarkMode();
+initLogo();
 </script>
 </body>
 </html>
