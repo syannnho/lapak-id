@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>lapakID — Premium ID Store</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f9fafb;
+  --bg2:#f2f4f7;
+  --card:#ffffff;
+  --card2:#f9fafb;
+  --border:#e4e7ec;
+  --border2:#d0d5dd;
+  --text:#101828;
+  --muted:#667085;
+  --muted2:#475467;
+  --white:#fff;
+  --purple:#465fff;
+  --pink:#7592ff;
+  --font:'Outfit',sans-serif;
+}
+body.dark-mode {
+  --bg: #000000;
+  --bg2: #0a0a0a;
+  --card: #111111;
+  --card2: #0a0a0a;
+  --border: #222222;
+  --border2: #333333;
+  --text: #ffffff;
+  --muted: #888888;
+  --muted2: #aaaaaa;
+  --white: #111111;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;transition:background 0.3s, color 0.3s}
+
+.hero-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-60%);width:700px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(70,95,255,.07) 0%,transparent 65%);pointer-events:none;z-index:0}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:200;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 40px;background:rgba(255,255,255,.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);box-shadow:0 1px 4px rgba(16,24,40,.04);transition:background 0.3s, border-color 0.3s}
+body.dark-mode nav{background:rgba(0,0,0,.95);border-bottom-color:var(--border)}
+.nav-logo{display:flex;align-items:center;gap:8px;font-size:.95rem;font-weight:700;color:var(--text)}
+.nav-logo-icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.nav-logo-icon img{width:100%;height:100%;object-fit:cover}
+.nav-links{display:flex;align-items:center;gap:28px}
+.nav-link{font-size:.83rem;color:var(--muted);text-decoration:none;transition:color .2s;font-weight:500}
+.nav-link:hover{color:var(--text)}
+.nav-join{background:var(--purple);color:#fff;font-size:.78rem;font-weight:600;padding:.45rem 1.1rem;border-radius:8px;text-decoration:none;transition:all .2s}
+.nav-join:hover{background:#3641f5;transform:translateY(-1px);box-shadow:0 4px 14px rgba(70,95,255,.3)}
+.nav-auth{display:flex;align-items:center;gap:8px}
+.nav-signin{font-size:.8rem;font-weight:500;color:var(--muted);text-decoration:none;padding:.45rem .9rem;border-radius:8px;transition:color .2s}
+.nav-signin:hover{color:var(--text)}
+.nav-user-btn{display:flex;align-items:center;gap:7px;background:var(--bg2);border:1px solid var(--border);padding:.4rem .9rem;border-radius:8px;font-size:.8rem;font-weight:600;color:var(--text);text-decoration:none;transition:all .2s}
+.nav-user-btn:hover{border-color:var(--purple);color:var(--purple)}
+.nav-user-dot{width:7px;height:7px;border-radius:50%;background:#12b76a}
+
+.hero{position:relative;z-index:1;min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:80px 24px 60px;overflow:hidden;background:var(--white);border-bottom:1px solid var(--border);transition:background 0.3s, border-color 0.3s}
+.hero-pill{display:inline-flex;align-items:center;gap:7px;background:var(--bg2);border:1px solid var(--border);padding:.3rem .9rem;border-radius:99px;font-size:.72rem;color:var(--muted2);margin-bottom:28px;animation:fadeUp .6s ease both;font-weight:500}
+.hero-pill-dot{width:6px;height:6px;border-radius:50%;background:var(--purple);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+h1{font-size:clamp(2rem,6vw,3.8rem);font-weight:800;line-height:1.1;letter-spacing:-2px;max-width:780px;color:var(--text);animation:fadeUp .6s .08s ease both}
+h1 span{color:var(--purple)}
+.version-badge{display:inline-flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);padding:6px 14px;border-radius:99px;margin-top:16px;animation:fadeUp .6s .12s ease both}
+.version-badge svg{width:14px;height:14px;stroke:var(--purple)}
+.version-text{font-size:.7rem;font-weight:500;color:var(--muted2);letter-spacing:.3px}
+.version-latest{font-size:.65rem;background:var(--purple);color:#fff;padding:2px 8px;border-radius:99px;font-weight:600}
+.hero-desc{font-size:.9rem;color:var(--muted);line-height:1.8;max-width:500px;margin:18px auto 0;font-weight:400;animation:fadeUp .6s .18s ease both}
+.hero-buttons{display:flex;gap:12px;justify-content:center;margin-top:32px;flex-wrap:wrap;animation:fadeUp .6s .22s ease both}
+.btn-hero{display:inline-block;background:var(--purple);color:#fff;font-size:.85rem;font-weight:600;padding:.8rem 2rem;border-radius:9px;text-decoration:none;transition:all .2s}
+.btn-hero:hover{background:#3641f5;transform:translateY(-1px);box-shadow:0 8px 24px rgba(70,95,255,.3)}
+
+.stats-wrap{width:100%;max-width:560px;margin:52px auto 0;display:grid;grid-template-columns:repeat(3,1fr);animation:fadeUp .6s .3s ease both;background:var(--white);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.stat-item{padding:22px 0;text-align:center;border-right:1px solid var(--border)}
+.stat-item:last-child{border-right:none}
+.stat-n{font-size:1.8rem;font-weight:800;color:var(--text);letter-spacing:-1.5px;line-height:1}
+.stat-l{font-size:.72rem;color:var(--muted);margin-top:5px;font-weight:400}
+
+.partners{border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:32px 40px;text-align:center;position:relative;z-index:1;background:var(--white);transition:background 0.3s, border-color 0.3s}
+.partners-label{display:inline-flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);padding:.25rem .75rem;border-radius:99px;font-size:.68rem;color:var(--muted);margin-bottom:20px;font-weight:500}
+.partners-title{font-size:1rem;font-weight:600;color:var(--text);margin-bottom:20px}
+.partners-grid{display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:nowrap;max-width:700px;margin:0 auto}
+.partner{flex:1;padding:12px 10px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:600;color:var(--muted2);background:var(--bg2);position:relative;overflow:hidden;transition:all .2s}
+.partner:first-child{border-radius:9px 0 0 9px}
+.partner:last-child{border-radius:0 9px 9px 0}
+.partner:not(:last-child){border-right:none}
+.partner:hover{background:var(--purple);color:#fff;border-color:var(--purple)}
+
+.badge-low{background:rgba(107,114,128,.1);color:#374151;border:1px solid rgba(107,114,128,.2)}
+.badge-medium{background:rgba(59,130,246,.1);color:#1d4ed8;border:1px solid rgba(59,130,246,.2)}
+.badge-high{background:rgba(249,115,22,.1);color:#c2410c;border:1px solid rgba(249,115,22,.2)}
+.badge-legend{background:rgba(234,179,8,.12);color:#92400e;border:1px solid rgba(234,179,8,.25)}
+body.dark-mode .badge-low{background:rgba(107,114,128,.2);color:#9ca3af}
+body.dark-mode .badge-medium{background:rgba(59,130,246,.2);color:#60a5fa}
+body.dark-mode .badge-high{background:rgba(249,115,22,.2);color:#fb923c}
+body.dark-mode .badge-legend{background:rgba(234,179,8,.15);color:#fbbf24}
+
+.sec{position:relative;z-index:1;max-width:1040px;margin:0 auto;padding:80px 32px}
+.sec-pill{display:inline-flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);padding:.25rem .75rem;border-radius:99px;font-size:.68rem;color:var(--muted);margin-bottom:16px;font-weight:500}
+.sec-title{font-size:clamp(1.6rem,4vw,2.4rem);font-weight:800;letter-spacing:-1px;color:var(--text);margin-bottom:10px;line-height:1.2}
+.sec-sub{font-size:.85rem;color:var(--muted);line-height:1.75;max-width:440px}
+.hline{height:1px;background:var(--border);position:relative;z-index:1}
+
+.score-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:32px}
+@media(max-width:640px){.score-grid{grid-template-columns:1fr}}
+.sc-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;text-decoration:none;color:var(--text);display:block;transition:all .25s;position:relative;overflow:hidden}
+.sc-card:hover{border-color:var(--purple);background:var(--card);transform:translateY(-2px);box-shadow:0 8px 28px rgba(70,95,255,.1)}
+.sc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+.sc-icon{width:40px;height:40px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center}
+.sc-icon svg{width:20px;height:20px;stroke:var(--muted)}
+.sc-tier-badge{font-size:.62rem;font-weight:600;padding:.22rem .65rem;border-radius:99px;letter-spacing:.4px}
+.sc-title{font-size:1.6rem;font-weight:800;letter-spacing:-1px;color:var(--text);line-height:1;margin-bottom:5px}
+.sc-name{font-size:.82rem;color:var(--muted);margin-bottom:16px;font-weight:400}
+.sc-divider{height:1px;background:var(--border);margin-bottom:16px}
+.sc-bottom{display:flex;justify-content:space-between;align-items:center}
+.sc-avail{font-size:.8rem;color:var(--muted)}
+.sc-avail b{color:var(--text);font-weight:600}
+.sc-link{font-size:.78rem;color:var(--muted);display:flex;align-items:center;gap:4px;transition:color .2s}
+.sc-card:hover .sc-link{color:var(--purple)}
+
+.feat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:32px}
+@media(max-width:640px){.feat-grid{grid-template-columns:1fr}}
+.feat{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;transition:all .2s}
+.feat:hover{border-color:var(--purple);box-shadow:0 4px 16px rgba(70,95,255,.08)}
+.feat-icon{width:40px;height:40px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+.feat-icon svg{width:20px;height:20px;stroke:var(--muted)}
+.feat-title{font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:7px;letter-spacing:-.2px}
+.feat-desc{font-size:.8rem;color:var(--muted);line-height:1.75}
+
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-top:32px}
+.table-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.table-title{font-size:.9rem;font-weight:600;color:var(--text)}
+.table-tag{font-size:.65rem;color:var(--muted);font-weight:500;background:var(--bg2);border:1px solid var(--border);padding:3px 9px;border-radius:99px;display:flex;align-items:center;gap:5px}
+.table-tag::before{content:'';width:5px;height:5px;border-radius:50%;background:#12b76a;flex-shrink:0}
+table{width:100%;border-collapse:collapse}
+thead th{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;padding:11px 22px;text-align:left;border-bottom:1px solid var(--border);background:var(--bg2)}
+tbody tr{border-bottom:1px solid var(--border);transition:background .15s;cursor:pointer}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--bg2)}
+tbody td{padding:14px 22px;font-size:.83rem;color:var(--muted2)}
+tbody td.td-score{color:var(--text);font-weight:600}
+tbody td.td-count{color:var(--text);font-weight:500}
+.td-badge{display:inline-flex}
+
+/* ═══════════════════════════════════════
+   ID SHOWCASE MARQUEE SECTION
+═══════════════════════════════════════ */
+.id-showcase-section {
+  position: relative;
+  z-index: 1;
+  padding: 80px 0;
+  background: var(--white);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  transition: background 0.3s, border-color 0.3s;
+}
+
+.id-showcase-header {
+  max-width: 1040px;
+  margin: 0 auto 40px;
+  padding: 0 32px;
+}
+
+/* Marquee track container */
+.marquee-container {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Fade edges */
+.marquee-container::before,
+.marquee-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 120px;
+  z-index: 10;
+  pointer-events: none;
+}
+.marquee-container::before {
+  left: 0;
+  background: linear-gradient(to right, var(--white), transparent);
+}
+.marquee-container::after {
+  right: 0;
+  background: linear-gradient(to left, var(--white), transparent);
+}
+
+.marquee-track {
+  display: flex;
+  gap: 12px;
+  width: max-content;
+  padding: 6px 0;
+}
+
+/* Row 1: scroll left */
+.marquee-track.left {
+  animation: scrollLeft 30s linear infinite;
+}
+/* Row 2: scroll right */
+.marquee-track.right {
+  animation: scrollRight 35s linear infinite;
+}
+/* Row 3: scroll left slower */
+.marquee-track.left-slow {
+  animation: scrollLeft 45s linear infinite;
+}
+
+.marquee-track:hover { animation-play-state: paused; }
+
+@keyframes scrollLeft {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes scrollRight {
+  0%   { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+
+/* Individual ID card in marquee */
+.id-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 16px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all .22s;
+  text-decoration: none;
+  color: var(--text);
+  flex-shrink: 0;
+  user-select: none;
+}
+.id-chip:hover {
+  border-color: var(--purple);
+  box-shadow: 0 4px 18px rgba(70,95,255,.13);
+  transform: translateY(-2px);
+}
+
+.id-chip-tier {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tier-dot-low    { background: #9ca3af; }
+.tier-dot-medium { background: #3b82f6; }
+.tier-dot-high   { background: #f97316; }
+.tier-dot-legend { background: #eab308; }
+
+.id-chip-score {
+  font-size: .88rem;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  color: var(--text);
+  font-family: 'Outfit', monospace;
+}
+.id-chip-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--border2);
+  flex-shrink: 0;
+}
+.id-chip-tier-label {
+  font-size: .62rem;
+  font-weight: 600;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+}
+.id-chip-tier-label.low    { color: #6b7280; }
+.id-chip-tier-label.medium { color: #3b82f6; }
+.id-chip-tier-label.high   { color: #f97316; }
+.id-chip-tier-label.legend { color: #eab308; }
+
+/* arrow icon on chip */
+.id-chip-arrow {
+  font-size: .7rem;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity .2s, color .2s;
+}
+.id-chip:hover .id-chip-arrow {
+  opacity: 1;
+  color: var(--purple);
+}
+
+/* Spacing between rows */
+.marquee-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Stats bar inside showcase */
+.id-showcase-stats {
+  max-width: 1040px;
+  margin: 36px auto 0;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.showcase-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: .3rem .85rem;
+  border-radius: 99px;
+  font-size: .72rem;
+  color: var(--muted2);
+  font-weight: 500;
+}
+.showcase-stat-pill b { color: var(--text); font-weight: 700; }
+.showcase-stat-pill .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+/* ═══════════════════════════════════════
+   CTA + FOOTER
+═══════════════════════════════════════ */
+.cta-section{position:relative;z-index:1;padding:0 32px 80px;max-width:1040px;margin:0 auto}
+.cta-box{background:var(--purple);border-radius:18px;padding:56px 48px;display:flex;justify-content:space-between;align-items:center;gap:32px;flex-wrap:wrap;position:relative;overflow:hidden}
+.cta-box::before{content:'';position:absolute;top:-80px;right:-80px;width:300px;height:300px;border-radius:50%;background:rgba(255,255,255,.07);pointer-events:none}
+.cta-box::after{content:'';position:absolute;bottom:-60px;right:100px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.04);pointer-events:none}
+.cta-left .cta-label{font-size:.7rem;color:rgba(255,255,255,.7);margin-bottom:12px;display:flex;align-items:center;gap:6px;font-weight:500}
+.cta-left .cta-label::before{content:'';width:16px;height:1px;background:rgba(255,255,255,.4)}
+.cta-title{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:800;letter-spacing:-1px;color:#fff;line-height:1.2;margin-bottom:10px}
+.cta-sub{font-size:.82rem;color:rgba(255,255,255,.7);line-height:1.7}
+.btn-cta{background:#fff;color:var(--purple);font-size:.82rem;font-weight:700;padding:.8rem 1.8rem;border-radius:9px;text-decoration:none;transition:all .2s;position:relative;z-index:1;flex-shrink:0}
+.btn-cta:hover{background:#ecf3ff;transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.15)}
+
+footer{position:relative;z-index:1;border-top:1px solid var(--border);padding:28px 40px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;background:var(--white);transition:background 0.3s, border-color 0.3s}
+.f-logo{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:700;color:var(--text)}
+.f-logo-icon{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.f-logo-icon img{width:100%;height:100%;object-fit:cover}
+.f-links{display:flex;gap:20px}
+.f-link{font-size:.78rem;color:var(--muted);text-decoration:none;transition:color .2s;font-weight:500}
+.f-link:hover{color:var(--purple)}
+.f-copy{font-size:.7rem;color:var(--muted)}
+
+.darkmode-toggle{
+  position:fixed;bottom:24px;right:24px;z-index:999;
+  width:52px;height:52px;border-radius:50%;
+  background:var(--purple);border:none;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .2s;
+  box-shadow:0 4px 14px rgba(70,95,255,.4);
+}
+.darkmode-toggle:hover{transform:scale(1.05);background:#3641f5}
+.darkmode-toggle img{width:24px;height:24px;}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+@media(max-width:768px){
+  nav{padding:0 20px}
+  .nav-links{display:none}
+  .partners-grid{flex-wrap:wrap}
+  .partner{border-radius:8px!important;border:1px solid var(--border)!important;flex:0 0 auto;width:calc(33% - 4px);margin:2px}
+  .partner:not(:last-child){border-right:1px solid var(--border)!important}
+  .sec{padding:60px 20px}
+  .cta-box{padding:36px 24px}
+  .cta-section{padding:0 20px 60px}
+  footer{padding:24px 20px}
+  .darkmode-toggle{bottom:16px;right:16px;width:44px;height:44px}
+  .darkmode-toggle img{width:20px;height:20px}
+  .marquee-container::before,.marquee-container::after{width:60px}
+  .id-showcase-header,.id-showcase-stats{padding:0 20px}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <div class="nav-logo-icon"><img src="https://files.catbox.moe/34dics.png" alt="lapakID Logo"/></div>
+    lapakID
+  </div>
+  <div class="nav-links">
+    <a href="#scores" class="nav-link">Koleksi</a>
+    <a href="#fitur" class="nav-link">Fitur</a>
+    <a href="#stok" class="nav-link">Stok</a>
+    <a href="#id-showcase" class="nav-link">Koleksi ID</a>
+  </div>
+  <div class="nav-auth" id="navAuth">
+    <!-- diisi JS berdasarkan status login -->
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-pill"><div class="hero-pill-dot"></div>Trusted Platform</div>
+  <h1>Temukan ID Premium<br/><span>Terbaik di Sini</span></h1>
+  <div class="version-badge">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="12 6 12 12 16 14"/>
+    </svg>
+    <span class="version-text">VERSION 2.0.0</span>
+    <span class="version-latest">LATEST</span>
+  </div>
+  <p class="hero-desc">Platform terpercaya untuk menemukan ID eksklusif berbagai tier. Stok real-time, harga transparan, order mudah.</p>
+  <div class="hero-buttons">
+    <a href="user/id.html" class="btn-hero">Mulai Jelajahi →</a>
+  </div>
+  <div class="stats-wrap">
+    <div class="stat-item"><div class="stat-n" id="sTotal">—</div><div class="stat-l">Total ID Tersedia</div></div>
+    <div class="stat-item"><div class="stat-n">4</div><div class="stat-l">Kategori Tier</div></div>
+    <div class="stat-item"><div class="stat-n" id="sSold">—</div><div class="stat-l">ID Terjual</div></div>
+  </div>
+</section>
+
+<div class="partners">
+  <div class="partners-label">• Tier Categories</div>
+  <p class="partners-title">Semua Tier Tersedia di lapakID</p>
+  <div class="partners-grid" id="partnerGrid"></div>
+</div>
+
+<section class="sec" id="scores">
+  <div class="sec-pill">• Koleksi ID</div>
+  <h2 class="sec-title">Pilihan Tier<br/>Premium Kami</h2>
+  <p class="sec-sub">Semakin tinggi tier, semakin eksklusif. Temukan ID yang tepat untuk kamu.</p>
+  <div class="score-grid" id="scoreGrid"></div>
+</section>
+
+<div class="hline"></div>
+
+<section class="sec" id="stok">
+  <div class="sec-pill">• Live Stock</div>
+  <h2 class="sec-title">Stok Tersedia<br/>Secara Real-Time</h2>
+  <p class="sec-sub">Data diambil langsung dari server, diperbarui setiap saat.</p>
+  <div class="table-wrap">
+    <div class="table-head">
+      <span class="table-title">Ringkasan Stok per Tier</span>
+      <span class="table-tag">Live Data</span>
+    </div>
+    <table>
+      <thead><tr><th>Tier</th><th>Level</th><th>Stok Tersedia</th><th>Status</th></tr></thead>
+      <tbody id="stockTable"></tbody>
+    </table>
+  </div>
+</section>
+
+<div class="hline"></div>
+
+<!-- ═══════════════════════════════════════
+     ID SHOWCASE — MARQUEE SLIDER
+═══════════════════════════════════════ -->
+<section class="id-showcase-section" id="id-showcase">
+  <div class="id-showcase-header">
+    <div class="sec-pill">• Kumpulan ID</div>
+    <h2 class="sec-title">ID yang Tersedia<br/>di lapakID</h2>
+    <p class="sec-sub">Semua ID eksklusif dari berbagai tier. Hover untuk pause, klik untuk lihat detail.</p>
+  </div>
+
+  <div class="marquee-rows">
+    <!-- Row 1: Low & Medium — scroll LEFT -->
+    <div class="marquee-container">
+      <div class="marquee-track left" id="marqueeRow1"></div>
+    </div>
+    <!-- Row 2: High & Legend — scroll RIGHT -->
+    <div class="marquee-container">
+      <div class="marquee-track right" id="marqueeRow2"></div>
+    </div>
+    <!-- Row 3: Mix all — scroll LEFT slower -->
+    <div class="marquee-container">
+      <div class="marquee-track left-slow" id="marqueeRow3"></div>
+    </div>
+  </div>
+
+  <div class="id-showcase-stats" id="showcaseStats">
+    <!-- filled by JS -->
+  </div>
+</section>
+
+<div class="hline"></div>
+
+<section class="sec" id="fitur">
+  <div class="sec-pill">• Fitur Platform</div>
+  <h2 class="sec-title">Fitur Unggulan<br/>lapakID</h2>
+  <p class="sec-sub">Platform kami menggabungkan data real-time dan desain yang mudah digunakan.</p>
+  <div class="feat-grid">
+    <div class="feat"><div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div><div class="feat-title">Smart Search</div><div class="feat-desc">Cari ID dari semua tier dalam hitungan detik dengan sistem pencarian pintar.</div></div>
+    <div class="feat"><div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div><div class="feat-title">Live Stock Update</div><div class="feat-desc">Data stok diperbarui langsung dari server secara real-time tanpa perlu reload halaman.</div></div>
+    <div class="feat"><div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12v8H4v-8M12 2v12m-4-4 4 4 4-4"/></svg></div><div class="feat-title">Deteksi Duplikat</div><div class="feat-desc">ID yang muncul di beberapa tier secara otomatis terdeteksi dan ditandai dengan jelas.</div></div>
+    <div class="feat"><div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div><div class="feat-title">Order via WhatsApp</div><div class="feat-desc">Pembelian mudah langsung lewat WhatsApp dengan harga yang transparan dan terpercaya.</div></div>
+  </div>
+</section>
+
+<div class="cta-section">
+  <div class="cta-box">
+    <div class="cta-left">
+      <div class="cta-label">Siap Mulai?</div>
+      <div class="cta-title">Ada Pertanyaan?<br/>Kami Siap Bantu.</div>
+      <div class="cta-sub">Hubungi kami via WhatsApp untuk info lebih lanjut tentang ID yang kamu inginkan.</div>
+    </div>
+    <a href="signin.html" class="btn-cta">Masuk Sekarang →</a>
+  </div>
+</div>
+
+<footer>
+  <div class="f-logo"><div class="f-logo-icon"><img src="https://files.catbox.moe/34dics.png" alt="lapakID Logo"/></div>lapakID</div>
+  <div class="f-links">
+    <a href="#scores" class="f-link">Koleksi</a>
+    <a href="#fitur" class="f-link">Fitur</a>
+    <a href="#stok" class="f-link">Stok</a>
+  </div>
+  <div class="f-copy">© 2026 lapakID. All Rights Reserved.</div>
+</footer>
+
+<button class="darkmode-toggle" id="darkModeToggle">
+  <img id="sunIcon" src="https://img.icons8.com/?size=100&id=6Z2mGj6qDVv4&format=png&color=ffffff" alt="Light Mode" style="width:24px;height:24px;display:none;">
+  <img id="moonIcon" src="https://img.icons8.com/?size=100&id=45474&format=png&color=ffffff" alt="Dark Mode" style="width:24px;height:24px;">
+</button>
+
+<script src="js/api.js"></script>
+<script>
+/* ══════════════════════════════════════════════════
+   index.html — Main Script
+   Terhubung ke: /api (via js/api.js helper)
+   Endpoints yang dipakai:
+     GET /api/ids?tier=low|medium|high|legend
+     GET /api/sold-ids
+   ══════════════════════════════════════════════════ */
+
+const TIERS = [
+  { name: 'Low',    level: 'LOW — BASIC',       badge: 'badge-low',    glow: 'rgba(107,114,128,.08)', dot: 'tier-dot-low',    label: 'low'    },
+  { name: 'Medium', level: 'MEDIUM — STANDARD',  badge: 'badge-medium', glow: 'rgba(59,130,246,.08)',  dot: 'tier-dot-medium', label: 'medium' },
+  { name: 'High',   level: 'HIGH — PREMIUM',     badge: 'badge-high',   glow: 'rgba(249,115,22,.08)',  dot: 'tier-dot-high',   label: 'high'   },
+  { name: 'Legend', level: 'LEGEND — ULTIMATE',  badge: 'badge-legend', glow: 'rgba(234,179,8,.1)',    dot: 'tier-dot-legend', label: 'legend' }
+];
+
+const TIER_COLORS = { low:'#9ca3af', medium:'#3b82f6', high:'#f97316', legend:'#eab308' };
+
+/* ─── Fallback fetchAPI jika js/api.js belum ada ─── */
+if (typeof apiFetch === 'undefined') {
+  window.apiFetch = async function(endpoint, options = {}) {
+    try {
+      const res = await fetch(`/api/${endpoint}`, options);
+      return await res.json();
+    } catch { return { success: false, data: [] }; }
+  };
+}
+
+/* ─── Auth-aware nav ─── */
+function renderNav() {
+  const navAuth = document.getElementById('navAuth');
+  // getToken() & getUser() disediakan oleh js/api.js
+  // Fallback manual jika api.js belum ada
+  const token = (typeof getToken !== 'undefined') ? getToken() : localStorage.getItem('token');
+  const user  = (typeof getUser  !== 'undefined') ? getUser()  : (() => {
+    try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
+  })();
+
+  if (token && user) {
+    const isAdmin = user.role === 'admin';
+    navAuth.innerHTML = `
+      <a href="${isAdmin ? 'admin/dashboard.html' : 'user/dashboard.html'}" class="nav-user-btn">
+        <span class="nav-user-dot"></span>
+        ${user.username || user.email || 'Dashboard'}
+      </a>`;
+  } else {
+    navAuth.innerHTML = `
+      <a href="signin.html" class="nav-signin">Masuk</a>
+      <a href="signup.html" class="nav-join">Daftar →</a>`;
+  }
+}
+
+/* ─── Load IDs per tier dari MongoDB via API ─── */
+async function loadTierData() {
+  const result = {};
+  for (const tier of ['low', 'medium', 'high', 'legend']) {
+    const res = await apiFetch(`ids?tier=${tier}`);
+    // API mengembalikan array objek {_id, score/id, tier, ...}
+    // Normalize: ambil field score atau _id sebagai display string
+    if (res.success && Array.isArray(res.data)) {
+      result[tier] = res.data.map(item =>
+        item.score ?? item.id ?? item.value ?? item._id ?? '???'
+      );
+    } else {
+      result[tier] = [];
+    }
+  }
+  return result;
+}
+
+/* ─── Count-up animasi angka ─── */
+function countUp(el, target) {
+  if (!el) return;
+  let duration=900, stepTime=16, steps=duration/stepTime,
+      increment=target/steps, current=0;
+  const interval = setInterval(() => {
+    current += increment;
+    if (current >= target) {
+      el.textContent = target.toLocaleString('id-ID');
+      clearInterval(interval);
+    } else {
+      el.textContent = Math.floor(current).toLocaleString('id-ID');
+    }
+  }, stepTime);
+}
+
+/* ─── Icon per tier ─── */
+function getCardIcon(tierName) {
+  const icons = {
+    low:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg>`,
+    medium: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="4"/></svg>`,
+    high:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="5"/></svg>`,
+    legend: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="6"/><path d="M12 8v8M8 12h8"/></svg>`
+  };
+  return icons[tierName.toLowerCase()] || icons.low;
+}
+
+/* ─── Build chip marquee ─── */
+function buildChip(idStr, tierKey) {
+  const chip = document.createElement('a');
+  chip.className = 'id-chip';
+  chip.href = `user/id.html?tier=${tierKey}`;
+  chip.innerHTML = `
+    <span class="id-chip-tier ${TIERS.find(t=>t.label===tierKey)?.dot || 'tier-dot-low'}"></span>
+    <span class="id-chip-score">${idStr}</span>
+    <span class="id-chip-divider"></span>
+    <span class="id-chip-tier-label ${tierKey}">${tierKey.toUpperCase()}</span>
+    <span class="id-chip-arrow">→</span>`;
+  return chip;
+}
+
+function fillMarqueeTrack(trackEl, items) {
+  const fragment = document.createDocumentFragment();
+  items.forEach(({ id, tier }) => fragment.appendChild(buildChip(id, tier)));
+  trackEl.appendChild(fragment);
+  // Clone 2x untuk seamless loop
+  [1, 2].forEach(() => trackEl.parentElement.appendChild(trackEl.cloneNode(true)));
+}
+
+/* ─── Render marquee showcase ─── */
+async function renderIDShowcase(tierData) {
+  const row1El = document.getElementById('marqueeRow1');
+  const row2El = document.getElementById('marqueeRow2');
+  const row3El = document.getElementById('marqueeRow3');
+
+  const lowIDs    = tierData.low.map(id    => ({ id, tier: 'low'    }));
+  const medIDs    = tierData.medium.map(id => ({ id, tier: 'medium' }));
+  const highIDs   = tierData.high.map(id   => ({ id, tier: 'high'   }));
+  const legendIDs = tierData.legend.map(id => ({ id, tier: 'legend' }));
+
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function makePlaceholders(tier, count) {
+    return Array.from({ length: count }, (_, i) => ({
+      id: `${tier.toUpperCase()}-${String(1000 + i).padStart(4,'0')}`,
+      tier
+    }));
+  }
+
+  function cap(arr, max) { return arr.length > max ? arr.slice(0, max) : arr; }
+
+  const row1Items = shuffle([
+    ...(lowIDs.length  ? lowIDs  : makePlaceholders('low', 12)),
+    ...(medIDs.length  ? medIDs  : makePlaceholders('medium', 12))
+  ]);
+  const row2Items = shuffle([
+    ...(highIDs.length   ? highIDs   : makePlaceholders('high', 12)),
+    ...(legendIDs.length ? legendIDs : makePlaceholders('legend', 12))
+  ]);
+  const row3Items = shuffle([
+    ...(lowIDs.length    ? lowIDs.slice(0,6)    : makePlaceholders('low', 6)),
+    ...(medIDs.length    ? medIDs.slice(0,6)    : makePlaceholders('medium', 6)),
+    ...(highIDs.length   ? highIDs.slice(0,6)   : makePlaceholders('high', 6)),
+    ...(legendIDs.length ? legendIDs.slice(0,6) : makePlaceholders('legend', 6))
+  ]);
+
+  fillMarqueeTrack(row1El, cap(row1Items, 30));
+  fillMarqueeTrack(row2El, cap(row2Items, 30));
+  fillMarqueeTrack(row3El, cap(row3Items, 24));
+
+  // Stats pills
+  const statsEl = document.getElementById('showcaseStats');
+  const tierStats = [
+    { key: 'low',    count: tierData.low.length,    color: TIER_COLORS.low    },
+    { key: 'medium', count: tierData.medium.length,  color: TIER_COLORS.medium },
+    { key: 'high',   count: tierData.high.length,    color: TIER_COLORS.high   },
+    { key: 'legend', count: tierData.legend.length,  color: TIER_COLORS.legend }
+  ];
+
+  const total = tierStats.reduce((s, t) => s + t.count, 0);
+  statsEl.innerHTML = tierStats.map(s => `
+    <div class="showcase-stat-pill">
+      <span class="dot" style="background:${s.color}"></span>
+      <b>${s.count.toLocaleString('id-ID')}</b> ID ${s.key.charAt(0).toUpperCase() + s.key.slice(1)}
+    </div>`).join('') + `
+    <div class="showcase-stat-pill" style="margin-left:auto">
+      <span class="dot" style="background:var(--purple)"></span>
+      Total <b>${total.toLocaleString('id-ID')}</b> ID
+    </div>`;
+}
+
+/* ─── Dark mode ─── */
+function initDarkMode() {
+  const toggleBtn = document.getElementById('darkModeToggle');
+  const sunIcon   = document.getElementById('sunIcon');
+  const moonIcon  = document.getElementById('moonIcon');
+  let darkMode = localStorage.getItem('darkMode') === 'true';
+
+  function applyDarkMode(isDark) {
+    document.body.classList.toggle('dark-mode', isDark);
+    sunIcon.style.display  = isDark ? 'block' : 'none';
+    moonIcon.style.display = isDark ? 'none'  : 'block';
+    localStorage.setItem('darkMode', isDark);
+  }
+  applyDarkMode(darkMode);
+  toggleBtn.addEventListener('click', () => { darkMode = !darkMode; applyDarkMode(darkMode); });
+}
+
+/* ══════════════════════════════════════════════════
+   INIT — jalankan semua saat halaman load
+   ══════════════════════════════════════════════════ */
+async function init() {
+  // 1. Render nav (auth-aware)
+  renderNav();
+
+  // 2. Partner pills (tier categories)
+  const partnerGrid = document.getElementById('partnerGrid');
+  TIERS.forEach(tier => {
+    const pill = document.createElement('div');
+    pill.className = 'partner';
+    pill.textContent = tier.name;
+    partnerGrid.appendChild(pill);
+  });
+
+  // 3. Load data ID dari MongoDB via API
+  const tierData = await loadTierData();
+
+  // 4. Load sold IDs
+  let soldData = [];
+  try {
+    const s = await apiFetch('sold-ids');
+    if (s.success && Array.isArray(s.data)) soldData = s.data;
+  } catch(e) {}
+
+  // 5. Stats counter
+  const totalIDs = Object.values(tierData).flat().length;
+  countUp(document.getElementById('sTotal'), totalIDs);
+  countUp(document.getElementById('sSold'), soldData.length);
+
+  // 6. Score cards (tier cards)
+  const scoreGrid = document.getElementById('scoreGrid');
+  scoreGrid.innerHTML = '';
+  TIERS.forEach((tier, idx) => {
+    const count = tierData[tier.label].length;
+    const card  = document.createElement('a');
+    card.href   = `user/id.html?tier=${tier.label}`;
+    card.className = 'sc-card';
+    card.style.cssText = `--glow:${tier.glow};animation:fadeUp .5s ${0.05+idx*0.06}s ease both`;
+    card.innerHTML = `
+      <div class="sc-head">
+        <div class="sc-icon">${getCardIcon(tier.name)}</div>
+        <span class="sc-tier-badge ${tier.badge}">${tier.level}</span>
+      </div>
+      <div class="sc-title">${tier.name}</div>
+      <div class="sc-name">Tier ${tier.name} Collection</div>
+      <div class="sc-divider"></div>
+      <div class="sc-bottom">
+        <div class="sc-avail">Tersedia: <b>${count.toLocaleString('id-ID')} ID</b></div>
+        <div class="sc-link">Lihat →</div>
+      </div>`;
+    scoreGrid.appendChild(card);
+  });
+
+  // 7. Stock table
+  const stockTable = document.getElementById('stockTable');
+  stockTable.innerHTML = '';
+  TIERS.forEach(tier => {
+    const count = tierData[tier.label].length;
+    const col   = TIER_COLORS[tier.label] || '#374151';
+    const row   = document.createElement('tr');
+    row.style.cursor = 'pointer';
+    row.onclick = () => location.href = `user/id.html?tier=${tier.label}`;
+    row.innerHTML = `
+      <td class="td-score">${tier.name}</td>
+      <td><span class="sc-tier-badge ${tier.badge} td-badge">${tier.level}</span></td>
+      <td class="td-count">${count.toLocaleString('id-ID')} ID</td>
+      <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:.75rem;color:${col}">
+        <span style="width:5px;height:5px;border-radius:50%;background:${col};display:inline-block"></span>
+        ${count > 0 ? 'Tersedia' : 'Habis'}
+      </span></td>`;
+    stockTable.appendChild(row);
+  });
+
+  // 8. Marquee ID showcase
+  await renderIDShowcase(tierData);
+
+  // 9. Dark mode toggle
+  initDarkMode();
+}
+
+init();
+</script>
+</body>
+</html>
