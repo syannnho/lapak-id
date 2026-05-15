@@ -29,6 +29,7 @@ async function getDb() {
     maxPoolSize: 10,
   });
   await client.connect();
+  console.log('✅ Connected to MongoDB');
   cachedClient = client;
   return client.db('lapakid');
 }
@@ -68,6 +69,7 @@ function genId(prefix = 'TX') {
 
 // POST /api/auth/register
 app.post('/api/auth/register', async (req, res) => {
+  console.log('📝 Register request:', req.body);
   try {
     const { username, fullName, emailPhone, password } = req.body;
     if (!username || !fullName || !emailPhone || !password) {
@@ -132,6 +134,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 // POST /api/auth/login
 app.post('/api/auth/login', async (req, res) => {
+  console.log('🔐 Login request:', req.body.username);
   try {
     const { username, password } = req.body;
     if (!username || !password) {
@@ -142,11 +145,9 @@ app.post('/api/auth/login', async (req, res) => {
     const users = db.collection('users');
     const admins = db.collection('admins');
 
-    // Cek user biasa
     let user = await users.findOne({ username: username.toLowerCase() });
     let isAdmin = false;
 
-    // Kalau tidak ketemu di users, cek admins
     if (!user) {
       user = await admins.findOne({ username: username.toLowerCase() });
       if (user) isAdmin = true;
@@ -189,7 +190,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// GET /api/auth/me — ambil data user yang sedang login
+// GET /api/auth/me
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
     const db = await getDb();
@@ -224,7 +225,7 @@ app.get('/api/user/profile', authMiddleware, async (req, res) => {
   }
 });
 
-// PUT /api/user/profile — update profil user
+// PUT /api/user/profile
 app.put('/api/user/profile', authMiddleware, async (req, res) => {
   try {
     const { fullName, emailPhone, avatar } = req.body;
@@ -244,8 +245,6 @@ app.put('/api/user/profile', authMiddleware, async (req, res) => {
   }
 });
 
-// ─── CART ──────────────────────────────────────────────────────────────────
-
 // GET /api/user/cart
 app.get('/api/user/cart', authMiddleware, async (req, res) => {
   try {
@@ -260,18 +259,16 @@ app.get('/api/user/cart', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/user/cart — tambah item ke cart
+// POST /api/user/cart
 app.post('/api/user/cart', authMiddleware, async (req, res) => {
   try {
-    const { idItem } = req.body; // idItem = _id dari collection 'ids'
+    const { idItem } = req.body;
     if (!idItem) return res.status(400).json({ success: false, message: 'idItem wajib diisi' });
 
     const db = await getDb();
-    // Cek apakah ID masih tersedia
     const idDoc = await db.collection('ids').findOne({ _id: new ObjectId(idItem), status: 'available' });
     if (!idDoc) return res.status(404).json({ success: false, message: 'ID tidak tersedia' });
 
-    // Cek duplikat di cart
     const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
     if (user.cart && user.cart.some(c => c.idItem === idItem)) {
       return res.status(409).json({ success: false, message: 'ID sudah ada di keranjang' });
@@ -298,7 +295,7 @@ app.post('/api/user/cart', authMiddleware, async (req, res) => {
   }
 });
 
-// DELETE /api/user/cart/:idItem — hapus dari cart
+// DELETE /api/user/cart/:idItem
 app.delete('/api/user/cart/:idItem', authMiddleware, async (req, res) => {
   try {
     const { idItem } = req.params;
@@ -313,7 +310,7 @@ app.delete('/api/user/cart/:idItem', authMiddleware, async (req, res) => {
   }
 });
 
-// DELETE /api/user/cart — kosongkan semua cart
+// DELETE /api/user/cart
 app.delete('/api/user/cart', authMiddleware, async (req, res) => {
   try {
     const db = await getDb();
@@ -328,10 +325,10 @@ app.delete('/api/user/cart', authMiddleware, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ID ROUTES (browsing untuk user)
+// ID ROUTES
 // ═══════════════════════════════════════════════════════════════════════════
 
-// GET /api/ids — ambil semua ID yang tersedia (available)
+// GET /api/ids
 app.get('/api/ids', async (req, res) => {
   try {
     const { tier, sort, page = 1, limit = 20 } = req.query;
@@ -347,7 +344,7 @@ app.get('/api/ids', async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const total = await db.collection('ids').countDocuments(filter);
     const ids = await db.collection('ids')
-      .find(filter, { projection: { uid: 0, password: 0 } }) // sembunyikan credentials
+      .find(filter, { projection: { uid: 0, password: 0 } })
       .sort(sortOpt)
       .skip(skip)
       .limit(parseInt(limit))
@@ -359,7 +356,7 @@ app.get('/api/ids', async (req, res) => {
   }
 });
 
-// GET /api/ids/:id — detail satu ID (tanpa credentials)
+// GET /api/ids/:id
 app.get('/api/ids/:id', async (req, res) => {
   try {
     const db = await getDb();
@@ -378,7 +375,7 @@ app.get('/api/ids/:id', async (req, res) => {
 // PAYMENT / TRANSAKSI ROUTES
 // ═══════════════════════════════════════════════════════════════════════════
 
-// POST /api/payment/buy — beli 1 ID langsung
+// POST /api/payment/buy
 app.post('/api/payment/buy', authMiddleware, async (req, res) => {
   try {
     const { idItem } = req.body;
@@ -390,11 +387,9 @@ app.post('/api/payment/buy', authMiddleware, async (req, res) => {
     const sold = db.collection('sold');
     const transaksi = db.collection('transaksi');
 
-    // Ambil data user
     const user = await users.findOne({ _id: new ObjectId(req.user.id) });
     if (!user) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
 
-    // Ambil data ID — LOCK dengan findOneAndUpdate untuk hindari race condition
     const idDoc = await ids.findOneAndUpdate(
       { _id: new ObjectId(idItem), status: 'available' },
       { $set: { status: 'sold', soldAt: new Date(), soldTo: req.user.id } },
@@ -407,9 +402,7 @@ app.post('/api/payment/buy', authMiddleware, async (req, res) => {
 
     const id = idDoc.value;
 
-    // Cek saldo
     if (user.coins < id.price) {
-      // Kembalikan status ID kalau saldo kurang
       await ids.updateOne({ _id: id._id }, { $set: { status: 'available', soldAt: null, soldTo: null } });
       return res.status(402).json({
         success: false,
@@ -417,7 +410,6 @@ app.post('/api/payment/buy', authMiddleware, async (req, res) => {
       });
     }
 
-    // Kurangi saldo
     const newCoins = user.coins - id.price;
     await users.updateOne(
       { _id: new ObjectId(req.user.id) },
@@ -428,9 +420,8 @@ app.post('/api/payment/buy', authMiddleware, async (req, res) => {
       }
     );
 
-    // Buat record transaksi
     const txId = genId('TX');
-    const txRecord = {
+    await transaksi.insertOne({
       txId,
       userId: req.user.id,
       username: user.username,
@@ -440,10 +431,8 @@ app.post('/api/payment/buy', authMiddleware, async (req, res) => {
       price: id.price,
       status: 'success',
       createdAt: new Date()
-    };
-    await transaksi.insertOne(txRecord);
+    });
 
-    // Simpan ke koleksi sold (dengan credentials — hanya bisa diakses user yang beli)
     await sold.insertOne({
       txId,
       userId: req.user.id,
@@ -476,7 +465,7 @@ app.post('/api/payment/buy', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/payment/buy-cart — beli semua item di cart
+// POST /api/payment/buy-cart
 app.post('/api/payment/buy-cart', authMiddleware, async (req, res) => {
   try {
     const db = await getDb();
@@ -517,7 +506,6 @@ app.post('/api/payment/buy-cart', authMiddleware, async (req, res) => {
     }
 
     if (user.coins < totalHarga) {
-      // Kembalikan semua ID
       for (const r of results) {
         await ids.updateOne({ _id: r.idDoc._id }, { $set: { status: 'available', soldAt: null, soldTo: null } });
       }
@@ -586,11 +574,7 @@ app.post('/api/payment/buy-cart', authMiddleware, async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TRANSAKSI / RIWAYAT USER
-// ═══════════════════════════════════════════════════════════════════════════
-
-// GET /api/transaksi — riwayat transaksi user yang login
+// GET /api/transaksi
 app.get('/api/transaksi', authMiddleware, async (req, res) => {
   try {
     const { page = 1, limit = 20, status } = req.query;
@@ -613,7 +597,7 @@ app.get('/api/transaksi', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/transaksi/purchases — riwayat pembelian user dengan credentials
+// GET /api/transaksi/purchases
 app.get('/api/transaksi/purchases', authMiddleware, async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
@@ -638,7 +622,7 @@ app.get('/api/transaksi/purchases', authMiddleware, async (req, res) => {
 // TOPUP ROUTES
 // ═══════════════════════════════════════════════════════════════════════════
 
-// POST /api/topup/request — user request topup (admin yg approve)
+// POST /api/topup/request
 app.post('/api/topup/request', authMiddleware, async (req, res) => {
   try {
     const { packageId, coins, amount } = req.body;
@@ -663,7 +647,7 @@ app.post('/api/topup/request', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/topup/history — riwayat topup user
+// GET /api/topup/history
 app.get('/api/topup/history', authMiddleware, async (req, res) => {
   try {
     const db = await getDb();
@@ -682,7 +666,7 @@ app.get('/api/topup/history', authMiddleware, async (req, res) => {
 // ADMIN ROUTES
 // ═══════════════════════════════════════════════════════════════════════════
 
-// GET /api/admin/stats — dashboard stats
+// GET /api/admin/stats
 app.get('/api/admin/stats', adminMiddleware, async (req, res) => {
   try {
     const db = await getDb();
@@ -722,7 +706,7 @@ app.get('/api/admin/stats', adminMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/admin/users — list semua user
+// GET /api/admin/users
 app.get('/api/admin/users', adminMiddleware, async (req, res) => {
   try {
     const { page = 1, limit = 20, search } = req.query;
@@ -749,7 +733,25 @@ app.get('/api/admin/users', adminMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/admin/ids — tambah ID baru
+// PUT /api/admin/users/:userId/coins
+app.put('/api/admin/users/:userId/coins', adminMiddleware, async (req, res) => {
+  try {
+    const { coins } = req.body;
+    if (coins === undefined || isNaN(coins)) {
+      return res.status(400).json({ success: false, message: 'Jumlah coins tidak valid' });
+    }
+    const db = await getDb();
+    await db.collection('users').updateOne(
+      { _id: new ObjectId(req.params.userId) },
+      { $set: { coins: parseInt(coins), updatedAt: new Date() } }
+    );
+    return res.json({ success: true, message: 'Coins user berhasil diubah' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/admin/ids
 app.post('/api/admin/ids', adminMiddleware, async (req, res) => {
   try {
     const { gameId, uid, password, tier, note } = req.body;
@@ -779,7 +781,6 @@ app.post('/api/admin/ids', adminMiddleware, async (req, res) => {
       addedAt: new Date()
     });
 
-    // Update counter admin
     await db.collection('admins').updateOne(
       { _id: new ObjectId(req.user.id) },
       { $inc: { totalIdDitambah: 1 } }
@@ -795,7 +796,7 @@ app.post('/api/admin/ids', adminMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/admin/ids — list semua ID (admin bisa lihat status + credentials)
+// GET /api/admin/ids
 app.get('/api/admin/ids', adminMiddleware, async (req, res) => {
   try {
     const { status, tier, page = 1, limit = 20 } = req.query;
@@ -819,7 +820,7 @@ app.get('/api/admin/ids', adminMiddleware, async (req, res) => {
   }
 });
 
-// DELETE /api/admin/ids/:id — hapus ID
+// DELETE /api/admin/ids/:id
 app.delete('/api/admin/ids/:id', adminMiddleware, async (req, res) => {
   try {
     const db = await getDb();
@@ -833,7 +834,7 @@ app.delete('/api/admin/ids/:id', adminMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/admin/transaksi — semua transaksi
+// GET /api/admin/transaksi
 app.get('/api/admin/transaksi', adminMiddleware, async (req, res) => {
   try {
     const { page = 1, limit = 20, status, userId } = req.query;
@@ -857,7 +858,7 @@ app.get('/api/admin/transaksi', adminMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/admin/topup — list semua request topup
+// GET /api/admin/topup
 app.get('/api/admin/topup', adminMiddleware, async (req, res) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
@@ -878,7 +879,7 @@ app.get('/api/admin/topup', adminMiddleware, async (req, res) => {
   }
 });
 
-// PUT /api/admin/topup/:topupId/approve — approve topup
+// PUT /api/admin/topup/:topupId/approve
 app.put('/api/admin/topup/:topupId/approve', adminMiddleware, async (req, res) => {
   try {
     const { topupId } = req.params;
@@ -887,7 +888,6 @@ app.put('/api/admin/topup/:topupId/approve', adminMiddleware, async (req, res) =
     const topup = await db.collection('topup').findOne({ topupId, status: 'pending' });
     if (!topup) return res.status(404).json({ success: false, message: 'Request topup tidak ditemukan' });
 
-    // Tambah coins ke user
     await db.collection('users').updateOne(
       { _id: new ObjectId(topup.userId) },
       { $inc: { coins: topup.coins }, $set: { updatedAt: new Date() } }
@@ -904,7 +904,7 @@ app.put('/api/admin/topup/:topupId/approve', adminMiddleware, async (req, res) =
   }
 });
 
-// PUT /api/admin/topup/:topupId/reject — reject topup
+// PUT /api/admin/topup/:topupId/reject
 app.put('/api/admin/topup/:topupId/reject', adminMiddleware, async (req, res) => {
   try {
     const { topupId } = req.params;
@@ -925,26 +925,7 @@ app.put('/api/admin/topup/:topupId/reject', adminMiddleware, async (req, res) =>
   }
 });
 
-// PUT /api/admin/users/:userId/coins — edit coins user secara manual
-app.put('/api/admin/users/:userId/coins', adminMiddleware, async (req, res) => {
-  try {
-    const { coins } = req.body;
-    if (coins === undefined || isNaN(coins)) {
-      return res.status(400).json({ success: false, message: 'Jumlah coins tidak valid' });
-    }
-    const db = await getDb();
-    await db.collection('users').updateOne(
-      { _id: new ObjectId(req.params.userId) },
-      { $set: { coins: parseInt(coins), updatedAt: new Date() } }
-    );
-    return res.json({ success: true, message: 'Coins user berhasil diubah' });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-// ─── ADMIN: Inisialisasi akun admin pertama (jalankan sekali) ───────────────
-// POST /api/admin/init — buat akun admin pertama (butuh secret key)
+// POST /api/admin/init
 app.post('/api/admin/init', async (req, res) => {
   try {
     const { username, password, fullName, initSecret } = req.body;
@@ -984,4 +965,3 @@ app.use('/api/*', (req, res) => {
 });
 
 module.exports = app;
-
