@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes"/>
+<title>Kelola ID | lapakID Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#f9fafb;--bg2:#f2f4f7;--card:#fff;--border:#e4e7ec;--text:#101828;--muted:#667085;--purple:#465fff;--success:#12b76a;--warning:#f79009;--danger:#f04438;--legend:#eab308;--high:#f97316;--medium:#3b82f6;--low:#6b7280;--font:'Outfit',sans-serif;--mono:'JetBrains Mono',monospace;}
+body.dark-mode{--bg:#000;--bg2:#0a0a0a;--card:#111;--border:#222;--text:#fff;--muted:#888;}
+body{background:var(--bg);color:var(--text);font-family:var(--font);transition:background .3s;min-height:100vh;display:flex;flex-direction:column;}
+.app-wrapper{display:flex;flex-direction:column;min-height:100vh;}
+.main-content{flex:1;max-width:1100px;margin:0 auto;padding:80px 16px 60px;width:100%;}
+nav{position:fixed;top:0;left:0;right:0;z-index:200;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+body.dark-mode nav{background:rgba(0,0,0,.96)}
+.nav-left{display:flex;align-items:center;gap:10px}
+.nav-logo{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:800;color:var(--text);text-decoration:none}
+.nav-logo-icon{width:26px;height:26px;border-radius:8px;overflow:hidden}
+.nav-logo-icon img{width:100%;height:100%;object-fit:cover}
+.admin-badge{background:rgba(240,68,56,.12);color:var(--danger);border:1px solid rgba(240,68,56,.25);border-radius:40px;padding:2px 8px;font-size:.6rem;font-weight:700}
+.nav-right{display:flex;align-items:center;gap:8px}
+.dropdown{position:relative}
+.dropdown-trigger{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);padding:3px 10px 3px 6px;border-radius:99px;cursor:pointer}
+.user-avatar{width:26px;height:26px;border-radius:50%;background:var(--danger);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.65rem}
+.user-name{font-size:.65rem;font-weight:600;display:none}
+@media(min-width:480px){.user-name{display:inline-block}}
+.dropdown-arrow{font-size:.55rem;color:var(--muted);transition:transform .2s}
+.dropdown.active .dropdown-arrow{transform:rotate(180deg)}
+.dropdown-menu{position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:16px;min-width:190px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.12);opacity:0;visibility:hidden;transform:translateY(-8px);transition:all .2s;z-index:300}
+.dropdown.active .dropdown-menu{opacity:1;visibility:visible;transform:translateY(0)}
+.dropdown-item{display:flex;align-items:center;gap:8px;padding:9px 14px;color:var(--text);font-size:.72rem;font-weight:500;border-bottom:1px solid var(--border);cursor:pointer;text-decoration:none}
+.dropdown-item:last-child{border-bottom:none}
+.dropdown-item:hover{background:var(--bg2);color:var(--purple)}
+.dropdown-item.logout{color:var(--danger)}
+.page-header{margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.page-header h1{font-size:1.3rem;font-weight:800;letter-spacing:-.3px}
+.btn-add{background:var(--purple);color:#fff;border:none;border-radius:40px;padding:8px 18px;font-size:.78rem;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.filter-bar{display:flex;gap:6px;flex-wrap:wrap}
+.fb{background:var(--bg2);border:1px solid var(--border);border-radius:40px;padding:5px 12px;font-size:.7rem;font-weight:600;cursor:pointer;color:var(--muted);transition:all .15s}
+.fb.act{background:var(--purple);color:#fff;border-color:var(--purple)}
+.search-input{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:7px 12px;font-size:.8rem;color:var(--text);font-family:var(--font);outline:none;flex:1;min-width:180px}
+.search-input:focus{border-color:var(--purple)}
+
+.id-table{width:100%;border-collapse:collapse}
+.id-table th{font-size:.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;text-align:left;border-bottom:2px solid var(--border)}
+.id-table td{padding:9px 10px;font-size:.78rem;border-bottom:1px solid var(--border);vertical-align:middle}
+.id-table tr:last-child td{border-bottom:none}
+.id-table tr:hover td{background:var(--bg2)}
+.mono{font-family:var(--mono);font-size:.72rem}
+.tier-badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.6rem;font-weight:700}
+.tb-low{background:rgba(107,114,128,.15);color:var(--low)}
+.tb-medium{background:rgba(59,130,246,.15);color:var(--medium)}
+.tb-high{background:rgba(249,115,22,.15);color:var(--high)}
+.tb-legend{background:rgba(234,179,8,.15);color:var(--legend)}
+.status-available{color:var(--success);font-weight:600;font-size:.7rem}
+.status-sold{color:var(--danger);font-weight:600;font-size:.7rem}
+.btn-del{background:rgba(240,68,56,.1);color:var(--danger);border:1px solid rgba(240,68,56,.2);border-radius:7px;padding:3px 10px;font-size:.65rem;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-del:hover{background:var(--danger);color:#fff}
+
+.table-wrapper{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;overflow-x:auto}
+.empty-state{text-align:center;padding:48px;color:var(--muted);font-size:.85rem}
+.load-more{display:block;width:100%;padding:11px;background:var(--bg2);border:1px solid var(--border);border-radius:40px;font-size:.78rem;font-weight:600;cursor:pointer;color:var(--text);margin-top:16px}
+.darkmode-btn{background:var(--bg2);border:1px solid var(--border);width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.95rem}
+footer{border-top:1px solid var(--border);padding:16px;text-align:center;background:var(--card);color:var(--muted);font-size:.65rem;}
+</style>
+</head>
+<body>
+<div class="app-wrapper">
+<nav>
+  <div class="nav-left">
+    <a href="/admin/dashboard.html" class="nav-logo">
+      <div class="nav-logo-icon"><img src="https://files.catbox.moe/34dics.png" alt="lapakID"/></div>
+      lapakID
+    </a>
+    <span class="admin-badge">ADMIN</span>
+  </div>
+  <div class="nav-right">
+    <div class="dropdown" id="userDropdown">
+      <div class="dropdown-trigger">
+        <div class="user-avatar" id="navAvatar">A</div>
+        <span class="user-name" id="navUsername">Admin</span>
+        <span class="dropdown-arrow">▼</span>
+      </div>
+      <div class="dropdown-menu">
+        <a href="/admin/dashboard.html" class="dropdown-item">📊 Dashboard</a>
+        <a href="/admin/addid.html" class="dropdown-item">➕ Tambah ID</a>
+        <a href="/admin/topup.html" class="dropdown-item">🪙 Kelola Topup</a>
+        <a href="/admin/users.html" class="dropdown-item">👥 Kelola User</a>
+        <a href="/admin/transaksi.html" class="dropdown-item">📋 Transaksi</a>
+        <div class="dropdown-item logout" id="logoutBtn">🚪 Logout</div>
+      </div>
+    </div>
+    <button class="darkmode-btn" id="darkModeToggle">🌙</button>
+  </div>
+</nav>
+
+<div class="main-content">
+  <div class="page-header">
+    <h1>🎮 Kelola ID</h1>
+    <a href="/admin/addid.html" class="btn-add">➕ Tambah ID</a>
+  </div>
+  <div class="toolbar">
+    <input type="search" class="search-input" id="searchInput" placeholder="Cari game ID..."/>
+    <div class="filter-bar">
+      <button class="fb act" data-s="">Semua</button>
+      <button class="fb" data-s="available">Tersedia</button>
+      <button class="fb" data-s="sold">Terjual</button>
+    </div>
+    <div class="filter-bar">
+      <button class="fb act2" data-t="">Tier: Semua</button>
+      <button class="fb" data-t="low">Low</button>
+      <button class="fb" data-t="medium">Med</button>
+      <button class="fb" data-t="high">High</button>
+      <button class="fb" data-t="legend">Legend</button>
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table class="id-table">
+      <thead><tr><th>Game ID</th><th>UID</th><th>Tier</th><th>Harga</th><th>Status</th><th>Tanggal</th><th>Aksi</th></tr></thead>
+      <tbody id="idTableBody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">Memuat...</td></tr></tbody>
+    </table>
+  </div>
+  <button id="loadMoreBtn" class="load-more" style="display:none">Muat lebih banyak</button>
+</div>
+<footer>© 2026 lapakID Admin</footer>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+Auth.requireAdmin('/signin.html');
+const user = Auth.getUser() || {};
+document.getElementById('navAvatar').textContent = (user.fullName||user.username||'A').charAt(0).toUpperCase();
+document.getElementById('navUsername').textContent = user.username || 'Admin';
+
+let activeStatus='', activeTier='', page=1, allData=[], total=0, searchQ='';
+
+async function loadData(reset=true){
+  if(reset){page=1;allData=[];}
+  const params={page,limit:25};
+  if(activeStatus) params.status=activeStatus;
+  if(activeTier) params.tier=activeTier;
+  const res = await AdminAPI.getIds(params);
+  if(res && res.success){
+    if(reset) allData=res.ids; else allData=[...allData,...res.ids];
+    total=res.total||0; renderTable();
+    document.getElementById('loadMoreBtn').style.display = allData.length<total?'block':'none';
+  }
+}
+
+function renderTable(){
+  const tb = document.getElementById('idTableBody');
+  const filtered = searchQ ? allData.filter(i=>i.gameId.toLowerCase().includes(searchQ.toLowerCase())) : allData;
+  if(!filtered.length){ tb.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">Tidak ada data.</td></tr>'; return; }
+  tb.innerHTML = filtered.map(id=>{
+    const tier=(id.tier||'low').toLowerCase();
+    return `<tr>
+      <td class="mono">${id.gameId}</td>
+      <td class="mono">${id.uid||'—'}</td>
+      <td><span class="tier-badge tb-${tier}">${tier.charAt(0).toUpperCase()+tier.slice(1)}</span></td>
+      <td>Rp${Number(id.price).toLocaleString('id-ID')}</td>
+      <td><span class="status-${id.status}">${id.status==='available'?'✅ Tersedia':'🔴 Terjual'}</span></td>
+      <td style="font-size:.65rem;color:var(--muted)">${new Date(id.addedAt).toLocaleDateString('id-ID')}</td>
+      <td>${id.status==='available'?`<button class="btn-del" onclick="deleteId('${id._id}','${id.gameId}')">Hapus</button>`:'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function deleteId(id, gameId){
+  if(!confirm('Hapus ID '+gameId+'?')) return;
+  const res = await AdminAPI.deleteId(id);
+  if(res&&res.success){showToast('✅ ID dihapus','success');loadData();}
+  else showToast('❌ '+(res?.message||'Gagal'),'error');
+}
+
+document.getElementById('searchInput').addEventListener('input',e=>{searchQ=e.target.value.trim();renderTable();});
+document.querySelectorAll('[data-s]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('[data-s]').forEach(x=>x.classList.remove('act'));
+  b.classList.add('act'); activeStatus=b.dataset.s; loadData();
+}));
+document.querySelectorAll('[data-t]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('[data-t]').forEach(x=>x.classList.remove('act2'));
+  b.classList.add('act2'); activeTier=b.dataset.t; loadData();
+}));
+document.getElementById('loadMoreBtn').addEventListener('click',()=>{page++;loadData(false);});
+
+const drop=document.getElementById('userDropdown');
+drop.addEventListener('click',e=>{e.stopPropagation();drop.classList.toggle('active');});
+document.addEventListener('click',()=>drop.classList.remove('active'));
+document.getElementById('logoutBtn').addEventListener('click',()=>{Auth.clear();window.location.href='/signin.html';});
+function initDarkMode(){const btn=document.getElementById('darkModeToggle');let dark=localStorage.getItem('darkMode')==='true';const a=d=>{document.body.classList.toggle('dark-mode',d);btn.textContent=d?'☀️':'🌙';localStorage.setItem('darkMode',d);};a(dark);btn.onclick=()=>{dark=!dark;a(dark);};}
+initDarkMode();loadData();
+</script>
+</body>
+</html>
