@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes"/>
+<title>Pembayaran | lapakID</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#f9fafb;--bg2:#f2f4f7;--card:#fff;--border:#e4e7ec;--text:#101828;--muted:#667085;--purple:#465fff;--success:#12b76a;--danger:#f04438;--legend:#eab308;--high:#f97316;--medium:#3b82f6;--low:#6b7280;--font:'Outfit',sans-serif;--mono:'JetBrains Mono',monospace;}
+body.dark-mode{--bg:#000;--bg2:#0a0a0a;--card:#111;--border:#222;--text:#fff;--muted:#888;}
+body{background:var(--bg);color:var(--text);font-family:var(--font);transition:background .3s;min-height:100vh;display:flex;flex-direction:column;}
+.app-wrapper{display:flex;flex-direction:column;min-height:100vh;}
+.main-content{flex:1;max-width:640px;margin:0 auto;padding:80px 16px 60px;width:100%;}
+nav{position:fixed;top:0;left:0;right:0;z-index:200;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+body.dark-mode nav{background:rgba(0,0,0,.96)}
+.nav-logo{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:800;color:var(--text);text-decoration:none}
+.nav-logo-icon{width:26px;height:26px;border-radius:8px;overflow:hidden}
+.nav-logo-icon img{width:100%;height:100%;object-fit:cover}
+.nav-right{display:flex;align-items:center;gap:8px}
+.saldo-chip{display:flex;align-items:center;gap:5px;background:linear-gradient(135deg,var(--purple),#7592ff);border-radius:99px;padding:4px 10px;font-size:.7rem;font-weight:700;color:#fff;text-decoration:none}
+
+.id-card{background:linear-gradient(135deg,#465fff,#7592ff);border-radius:20px;padding:22px;margin-bottom:20px;color:#fff}
+.ic-label{font-size:.65rem;opacity:.75;margin-bottom:4px}
+.ic-id{font-size:1.2rem;font-weight:800;font-family:var(--mono);word-break:break-all}
+.tier-badge{display:inline-block;padding:3px 10px;border-radius:8px;font-size:.65rem;font-weight:700;margin-top:8px;background:rgba(255,255,255,.2)}
+.ic-price{font-size:1rem;font-weight:800;margin-top:10px}
+
+.summary-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px}
+.sr{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:.8rem}
+.sr:last-child{border-bottom:none;font-weight:700;font-size:.88rem}
+.sr-lbl{color:var(--muted)}
+.saldo-warn{color:var(--danger);font-size:.72rem;margin-top:4px}
+
+.btn-bayar{width:100%;background:var(--purple);color:#fff;border:none;border-radius:40px;padding:14px;font-size:.9rem;font-weight:700;cursor:pointer;transition:all .2s;margin-top:8px}
+.btn-bayar:hover{background:#3641f5;transform:translateY(-1px);box-shadow:0 4px 14px rgba(70,95,255,.3)}
+.btn-bayar:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.btn-back{display:block;text-align:center;color:var(--muted);font-size:.78rem;margin-top:14px;text-decoration:none}
+.btn-back:hover{color:var(--purple)}
+
+.success-box{background:rgba(18,183,106,.08);border:1px solid rgba(18,183,106,.3);border-radius:16px;padding:20px;text-align:center;display:none}
+.success-box.show{display:block}
+.success-box h2{color:var(--success);font-size:1.2rem;font-weight:800;margin-bottom:8px}
+.cred-box{background:var(--bg2);border-radius:12px;padding:14px;margin-top:14px;font-family:var(--mono);font-size:.78rem;text-align:left}
+.cred-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)}
+.cred-row:last-child{border-bottom:none}
+.cred-lbl{color:var(--muted)}
+.cred-val{font-weight:700;word-break:break-all;text-align:right}
+.btn-copy-all{background:var(--purple);color:#fff;border:none;border-radius:40px;padding:10px 20px;font-size:.78rem;font-weight:600;cursor:pointer;margin-top:12px;width:100%}
+.btn-to-tx{display:block;text-align:center;margin-top:10px;color:var(--purple);font-size:.78rem;font-weight:600;text-decoration:none}
+.darkmode-btn{background:var(--bg2);border:1px solid var(--border);width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.95rem}
+footer{border-top:1px solid var(--border);padding:16px;text-align:center;background:var(--card);color:var(--muted);font-size:.65rem;}
+.err-msg{background:rgba(240,68,56,.1);color:var(--danger);padding:10px 14px;border-radius:12px;font-size:.72rem;margin-bottom:14px;text-align:center;display:none}
+.err-msg.show{display:block}
+</style>
+</head>
+<body>
+<div class="app-wrapper">
+<nav>
+  <a href="/" class="nav-logo">
+    <div class="nav-logo-icon"><img src="https://files.catbox.moe/34dics.png" alt="lapakID"/></div>
+    lapakID
+  </a>
+  <div class="nav-right">
+    <a href="/user/topup.html" class="saldo-chip">🪙 <span id="navCoins">...</span></a>
+    <button class="darkmode-btn" id="darkModeToggle">🌙</button>
+  </div>
+</nav>
+<div class="main-content">
+  <div id="paySection">
+    <div id="idCard" class="id-card">
+      <div class="ic-label">Game ID</div>
+      <div class="ic-id" id="pcGameId">Memuat...</div>
+      <div class="tier-badge" id="pcTier">—</div>
+      <div class="ic-price" id="pcPrice">—</div>
+    </div>
+    <div class="summary-card">
+      <div class="sr"><span class="sr-lbl">Harga ID</span><span id="srPrice">—</span></div>
+      <div class="sr"><span class="sr-lbl">Saldo kamu</span><span id="srSaldo">—</span></div>
+      <div class="sr"><span class="sr-lbl">Sisa saldo</span><span id="srSisa">—</span></div>
+    </div>
+    <div id="errMsg" class="err-msg"></div>
+    <button class="btn-bayar" id="bayarBtn">Bayar Sekarang</button>
+    <a href="/user/cart.html" class="btn-back">← Kembali ke keranjang</a>
+  </div>
+
+  <div id="successSection" class="success-box">
+    <h2>🎉 Pembayaran Berhasil!</h2>
+    <p style="font-size:.78rem;color:var(--muted)">Simpan data akun ini baik-baik</p>
+    <div class="cred-box">
+      <div class="cred-row"><span class="cred-lbl">Game ID</span><span class="cred-val" id="resGameId">—</span></div>
+      <div class="cred-row"><span class="cred-lbl">UID</span><span class="cred-val" id="resUid">—</span></div>
+      <div class="cred-row"><span class="cred-lbl">Password</span><span class="cred-val" id="resPass">—</span></div>
+      <div class="cred-row"><span class="cred-lbl">Tier</span><span class="cred-val" id="resTier">—</span></div>
+    </div>
+    <button class="btn-copy-all" id="copyAllBtn">📋 Salin Semua</button>
+    <a href="/user/transaksi.html" class="btn-to-tx">Lihat Riwayat Transaksi →</a>
+  </div>
+</div>
+<footer>© 2026 lapakID</footer>
+</div>
+<script src="/js/api.js"></script>
+<script>
+Auth.requireLogin('/signin.html');
+// Ambil idItem dari URL: /user/payment.html?id=xxx
+const params = new URLSearchParams(window.location.search);
+const idItem = params.get('id');
+let idData = null;
+let userData = Auth.getUser() || {};
+
+document.getElementById('navCoins').textContent = 'C.'+(userData.coins||0).toLocaleString('id-ID');
+
+async function init(){
+  if(!idItem){ window.location.href='/user/id.html'; return; }
+  try {
+    const [idRes, profileRes] = await Promise.all([IdsAPI.getOne(idItem), UserAPI.profile()]);
+    if(profileRes && profileRes.success){ userData = profileRes.user; document.getElementById('navCoins').textContent = 'C.'+(userData.coins||0).toLocaleString('id-ID'); }
+    if(!idRes || !idRes.success){ window.location.href='/user/id.html'; return; }
+    idData = idRes.id;
+    const tier = (idData.tier||'low');
+    document.getElementById('pcGameId').textContent = idData.gameId;
+    document.getElementById('pcTier').textContent = tier.charAt(0).toUpperCase()+tier.slice(1);
+    document.getElementById('pcPrice').textContent = 'Rp'+Number(idData.price).toLocaleString('id-ID');
+    document.getElementById('srPrice').textContent = 'Rp'+Number(idData.price).toLocaleString('id-ID');
+    document.getElementById('srSaldo').textContent = 'Rp'+(userData.coins||0).toLocaleString('id-ID');
+    const sisa = (userData.coins||0) - idData.price;
+    const sisaEl = document.getElementById('srSisa');
+    const btn = document.getElementById('bayarBtn');
+    if(sisa < 0){
+      sisaEl.textContent = '-Rp'+Math.abs(sisa).toLocaleString('id-ID');
+      sisaEl.style.color = 'var(--danger)';
+      document.getElementById('errMsg').textContent = '❌ Saldo tidak cukup. Top up dulu!';
+      document.getElementById('errMsg').classList.add('show');
+      btn.disabled = true;
+    } else {
+      sisaEl.textContent = 'Rp'+sisa.toLocaleString('id-ID');
+    }
+  } catch(e){ window.location.href='/user/id.html'; }
+}
+
+document.getElementById('bayarBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('bayarBtn');
+  btn.disabled=true; btn.textContent='Memproses...';
+  const res = await PaymentAPI.buy(idItem);
+  if(res && res.success){
+    const tx = res.transaction;
+    Auth.setSession(Auth.getToken(), {...Auth.getUser(), coins: tx.newCoins});
+    document.getElementById('navCoins').textContent = 'C.'+tx.newCoins.toLocaleString('id-ID');
+    document.getElementById('resGameId').textContent = tx.gameId;
+    document.getElementById('resUid').textContent = tx.uid;
+    document.getElementById('resPass').textContent = tx.password;
+    document.getElementById('resTier').textContent = tx.tier;
+    document.getElementById('paySection').style.display='none';
+    document.getElementById('successSection').classList.add('show');
+    document.getElementById('copyAllBtn').onclick = ()=>{
+      navigator.clipboard.writeText(`Game ID: ${tx.gameId}\nUID: ${tx.uid}\nPassword: ${tx.password}`);
+      showToast('Disalin!','success');
+    };
+  } else {
+    document.getElementById('errMsg').textContent = '❌ '+(res?.message||'Pembayaran gagal');
+    document.getElementById('errMsg').classList.add('show');
+    btn.disabled=false; btn.textContent='Bayar Sekarang';
+  }
+});
+
+function initDarkMode(){const btn=document.getElementById('darkModeToggle');let dark=localStorage.getItem('darkMode')==='true';const a=d=>{document.body.classList.toggle('dark-mode',d);btn.textContent=d?'☀️':'🌙';localStorage.setItem('darkMode',d);};a(dark);btn.onclick=()=>{dark=!dark;a(dark);};}
+initDarkMode();init();
+</script>
+</body>
+</html>

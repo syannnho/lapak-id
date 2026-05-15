@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes"/>
+<title>Tambah ID | lapakID Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#f9fafb;--bg2:#f2f4f7;--card:#fff;--border:#e4e7ec;--border2:#d0d5dd;--text:#101828;--muted:#667085;--muted2:#475467;--purple:#465fff;--success:#12b76a;--warning:#f79009;--danger:#f04438;--legend:#eab308;--high:#f97316;--medium:#3b82f6;--low:#6b7280;--font:'Outfit',sans-serif;--mono:'JetBrains Mono',monospace;}
+body.dark-mode{--bg:#000;--bg2:#0a0a0a;--card:#111;--border:#222;--border2:#333;--text:#fff;--muted:#888;--muted2:#aaa;}
+body{background:var(--bg);color:var(--text);font-family:var(--font);transition:background .3s;min-height:100vh;display:flex;flex-direction:column;}
+.app-wrapper{display:flex;flex-direction:column;min-height:100vh;}
+.main-content{flex:1;max-width:700px;margin:0 auto;padding:80px 16px 60px;width:100%;}
+nav{position:fixed;top:0;left:0;right:0;z-index:200;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+body.dark-mode nav{background:rgba(0,0,0,.96)}
+.nav-left{display:flex;align-items:center;gap:10px}
+.nav-logo{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:800;color:var(--text);text-decoration:none}
+.nav-logo-icon{width:26px;height:26px;border-radius:8px;overflow:hidden}
+.nav-logo-icon img{width:100%;height:100%;object-fit:cover}
+.admin-badge{background:rgba(240,68,56,.12);color:var(--danger);border:1px solid rgba(240,68,56,.25);border-radius:40px;padding:2px 8px;font-size:.6rem;font-weight:700}
+.nav-right{display:flex;align-items:center;gap:8px}
+.dropdown{position:relative}
+.dropdown-trigger{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);padding:3px 10px 3px 6px;border-radius:99px;cursor:pointer}
+.user-avatar{width:26px;height:26px;border-radius:50%;background:var(--danger);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.65rem}
+.user-name{font-size:.65rem;font-weight:600;display:none}
+@media(min-width:480px){.user-name{display:inline-block}}
+.dropdown-arrow{font-size:.55rem;color:var(--muted);transition:transform .2s}
+.dropdown.active .dropdown-arrow{transform:rotate(180deg)}
+.dropdown-menu{position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:16px;min-width:190px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.12);opacity:0;visibility:hidden;transform:translateY(-8px);transition:all .2s;z-index:300}
+.dropdown.active .dropdown-menu{opacity:1;visibility:visible;transform:translateY(0)}
+.dropdown-item{display:flex;align-items:center;gap:8px;padding:9px 14px;color:var(--text);font-size:.72rem;font-weight:500;border-bottom:1px solid var(--border);cursor:pointer;text-decoration:none}
+.dropdown-item:last-child{border-bottom:none}
+.dropdown-item:hover{background:var(--bg2);color:var(--purple)}
+.dropdown-item.logout{color:var(--danger)}
+
+.page-header{margin-bottom:22px}
+.page-header h1{font-size:1.4rem;font-weight:800;letter-spacing:-.3px}
+.page-header p{color:var(--muted);font-size:.78rem;margin-top:4px}
+
+.form-card{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:24px;margin-bottom:20px}
+.form-title{font-size:.95rem;font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+.form-grid{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:500px){.form-grid{grid-template-columns:1fr 1fr}}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-group.full{grid-column:1/-1}
+label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+input,select,textarea{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:10px 14px;font-size:.85rem;color:var(--text);font-family:var(--font);outline:none;transition:all .2s;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(70,95,255,.1)}
+input::placeholder,textarea::placeholder{color:var(--muted);font-size:.78rem}
+textarea{resize:vertical;min-height:70px}
+
+.tier-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+@media(min-width:500px){.tier-grid{grid-template-columns:repeat(4,1fr)}}
+.tier-option{border:2px solid var(--border);border-radius:12px;padding:10px 8px;text-align:center;cursor:pointer;transition:all .2s}
+.tier-option:hover{border-color:var(--purple)}
+.tier-option.selected-low{border-color:var(--low);background:rgba(107,114,128,.08)}
+.tier-option.selected-medium{border-color:var(--medium);background:rgba(59,130,246,.08)}
+.tier-option.selected-high{border-color:var(--high);background:rgba(249,115,22,.08)}
+.tier-option.selected-legend{border-color:var(--legend);background:rgba(234,179,8,.08)}
+.tier-name{font-size:.78rem;font-weight:700}
+.tier-price{font-size:.65rem;color:var(--muted);margin-top:3px}
+
+.preview-card{background:linear-gradient(135deg,#465fff,#7592ff);border-radius:18px;padding:20px;margin-bottom:20px;display:none}
+.preview-card.show{display:block}
+.preview-lbl{font-size:.65rem;color:rgba(255,255,255,.7);margin-bottom:2px}
+.preview-id{font-size:1.1rem;font-weight:800;font-family:var(--mono);color:#fff;margin-bottom:12px;word-break:break-all}
+.preview-row{display:flex;justify-content:space-between;font-size:.72rem;margin-bottom:4px}
+.preview-key{color:rgba(255,255,255,.7)}
+.preview-val{color:#fff;font-weight:600;font-family:var(--mono)}
+
+.btn-submit{width:100%;background:var(--purple);color:#fff;border:none;border-radius:40px;padding:14px;font-size:.9rem;font-weight:700;cursor:pointer;transition:all .2s}
+.btn-submit:hover{background:#3641f5;transform:translateY(-1px);box-shadow:0 4px 14px rgba(70,95,255,.3)}
+.btn-submit:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.error-msg{background:rgba(240,68,56,.1);color:var(--danger);padding:10px 14px;border-radius:12px;font-size:.7rem;margin-bottom:16px;text-align:center;display:none}
+.error-msg.show{display:block}
+.success-msg{background:rgba(18,183,106,.1);color:var(--success);padding:10px 14px;border-radius:12px;font-size:.7rem;margin-bottom:16px;text-align:center;display:none}
+.success-msg.show{display:block}
+.darkmode-btn{background:var(--bg2);border:1px solid var(--border);width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.95rem}
+footer{border-top:1px solid var(--border);padding:16px;text-align:center;background:var(--card);color:var(--muted);font-size:.65rem;}
+</style>
+</head>
+<body>
+<div class="app-wrapper">
+<nav>
+  <div class="nav-left">
+    <a href="/admin/dashboard.html" class="nav-logo">
+      <div class="nav-logo-icon"><img src="https://files.catbox.moe/34dics.png" alt="lapakID"/></div>
+      lapakID
+    </a>
+    <span class="admin-badge">ADMIN</span>
+  </div>
+  <div class="nav-right">
+    <div class="dropdown" id="userDropdown">
+      <div class="dropdown-trigger">
+        <div class="user-avatar" id="navAvatar">A</div>
+        <span class="user-name" id="navUsername">Admin</span>
+        <span class="dropdown-arrow">▼</span>
+      </div>
+      <div class="dropdown-menu">
+        <a href="/admin/dashboard.html" class="dropdown-item">📊 Dashboard</a>
+        <a href="/admin/ids.html" class="dropdown-item">🎮 Kelola ID</a>
+        <a href="/admin/topup.html" class="dropdown-item">🪙 Kelola Topup</a>
+        <a href="/admin/users.html" class="dropdown-item">👥 Kelola User</a>
+        <a href="/admin/transaksi.html" class="dropdown-item">📋 Transaksi</a>
+        <div class="dropdown-item logout" id="logoutBtn">🚪 Logout</div>
+      </div>
+    </div>
+    <button class="darkmode-btn" id="darkModeToggle">🌙</button>
+  </div>
+</nav>
+
+<div class="main-content">
+  <div class="page-header">
+    <h1>➕ Tambah ID</h1>
+    <p>Tambahkan ID game baru ke katalog lapakID</p>
+  </div>
+
+  <!-- Preview -->
+  <div class="preview-card" id="previewCard">
+    <div class="preview-lbl">Preview ID Card</div>
+    <div class="preview-id" id="pvGameId">—</div>
+    <div class="preview-row"><span class="preview-key">Tier</span><span class="preview-val" id="pvTier">—</span></div>
+    <div class="preview-row"><span class="preview-key">Harga</span><span class="preview-val" id="pvPrice">—</span></div>
+    <div class="preview-row"><span class="preview-key">UID</span><span class="preview-val" id="pvUid">—</span></div>
+  </div>
+
+  <div class="form-card">
+    <div class="form-title">🎮 Data ID Game</div>
+    <div id="errorMsg" class="error-msg"></div>
+    <div id="successMsg" class="success-msg"></div>
+    <form id="addIdForm">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Game ID (Nama Akun)</label>
+          <input type="text" id="gameId" placeholder="contoh: RexKing_ID" required autocomplete="off"/>
+        </div>
+        <div class="form-group">
+          <label>UID</label>
+          <input type="text" id="uid" placeholder="123456789" required autocomplete="off" style="font-family:var(--mono)"/>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="text" id="password" placeholder="pass@123" required autocomplete="off" style="font-family:var(--mono)"/>
+        </div>
+        <div class="form-group full">
+          <label>Tier & Harga</label>
+          <div class="tier-grid" id="tierGrid">
+            <div class="tier-option" data-tier="low" onclick="selectTier('low')">
+              <div class="tier-name" style="color:var(--low)">Low</div>
+              <div class="tier-price">Rp125.000</div>
+            </div>
+            <div class="tier-option" data-tier="medium" onclick="selectTier('medium')">
+              <div class="tier-name" style="color:var(--medium)">Medium</div>
+              <div class="tier-price">Rp450.000</div>
+            </div>
+            <div class="tier-option" data-tier="high" onclick="selectTier('high')">
+              <div class="tier-name" style="color:var(--high)">High</div>
+              <div class="tier-price">Rp850.000</div>
+            </div>
+            <div class="tier-option" data-tier="legend" onclick="selectTier('legend')">
+              <div class="tier-name" style="color:var(--legend)">Legend</div>
+              <div class="tier-price">Rp1.350.000</div>
+            </div>
+          </div>
+          <input type="hidden" id="tier" required/>
+        </div>
+        <div class="form-group full">
+          <label>Catatan (opsional)</label>
+          <textarea id="note" placeholder="Misal: Rank Mythic, skin langka, dll..."></textarea>
+        </div>
+      </div>
+      <div style="margin-top:18px">
+        <button type="submit" class="btn-submit" id="submitBtn">➕ Tambah ID</button>
+      </div>
+    </form>
+  </div>
+</div>
+<footer>© 2026 lapakID Admin</footer>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+Auth.requireAdmin('/signin.html');
+const user = Auth.getUser() || {};
+document.getElementById('navAvatar').textContent = (user.fullName||user.username||'A').charAt(0).toUpperCase();
+document.getElementById('navUsername').textContent = user.username || 'Admin';
+
+const PRICES = { low:125000, medium:450000, high:850000, legend:1350000 };
+let selectedTier = '';
+
+function selectTier(tier){
+  selectedTier = tier;
+  document.getElementById('tier').value = tier;
+  document.querySelectorAll('.tier-option').forEach(o=>{
+    o.className = 'tier-option' + (o.dataset.tier===tier?' selected-'+tier:'');
+  });
+  updatePreview();
+}
+
+function updatePreview(){
+  const gameId = document.getElementById('gameId').value.trim();
+  const uid = document.getElementById('uid').value.trim();
+  const card = document.getElementById('previewCard');
+  if(!gameId && !selectedTier){ card.classList.remove('show'); return; }
+  card.classList.add('show');
+  document.getElementById('pvGameId').textContent = gameId || '—';
+  document.getElementById('pvTier').textContent = selectedTier ? (selectedTier.charAt(0).toUpperCase()+selectedTier.slice(1)) : '—';
+  document.getElementById('pvPrice').textContent = selectedTier ? 'Rp'+PRICES[selectedTier].toLocaleString('id-ID') : '—';
+  document.getElementById('pvUid').textContent = uid || '—';
+}
+
+['gameId','uid'].forEach(id=>document.getElementById(id).addEventListener('input',updatePreview));
+
+document.getElementById('addIdForm').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const gameId = document.getElementById('gameId').value.trim();
+  const uid = document.getElementById('uid').value.trim();
+  const password = document.getElementById('password').value.trim();
+  const tier = document.getElementById('tier').value;
+  const note = document.getElementById('note').value.trim();
+  const errEl = document.getElementById('errorMsg');
+  const sucEl = document.getElementById('successMsg');
+  const btn = document.getElementById('submitBtn');
+  errEl.classList.remove('show'); sucEl.classList.remove('show');
+
+  if(!gameId||!uid||!password||!tier){
+    errEl.textContent = '❌ Semua field wajib diisi termasuk tier!';
+    errEl.classList.add('show'); return;
+  }
+  btn.disabled=true; btn.textContent='Menyimpan...';
+  try {
+    const res = await AdminAPI.addId({ gameId, uid, password, tier, note });
+    if(res && res.success){
+      sucEl.textContent = '✅ ID '+gameId+' berhasil ditambahkan!';
+      sucEl.classList.add('show');
+      document.getElementById('addIdForm').reset();
+      selectedTier = '';
+      document.querySelectorAll('.tier-option').forEach(o=>o.className='tier-option');
+      document.getElementById('previewCard').classList.remove('show');
+    } else {
+      errEl.textContent = '❌ '+(res?.message||'Gagal menambah ID');
+      errEl.classList.add('show');
+    }
+  } catch(err){
+    errEl.textContent = '❌ Gagal terhubung ke server.';
+    errEl.classList.add('show');
+  }
+  btn.disabled=false; btn.textContent='➕ Tambah ID';
+});
+
+const drop = document.getElementById('userDropdown');
+drop.addEventListener('click',e=>{e.stopPropagation();drop.classList.toggle('active');});
+document.addEventListener('click',()=>drop.classList.remove('active'));
+document.getElementById('logoutBtn').addEventListener('click',()=>{Auth.clear();window.location.href='/signin.html';});
+function initDarkMode(){const btn=document.getElementById('darkModeToggle');let dark=localStorage.getItem('darkMode')==='true';const a=d=>{document.body.classList.toggle('dark-mode',d);btn.textContent=d?'☀️':'🌙';localStorage.setItem('darkMode',d);};a(dark);btn.onclick=()=>{dark=!dark;a(dark);};}
+initDarkMode();
+</script>
+</body>
+</html>

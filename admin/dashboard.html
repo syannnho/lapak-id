@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes"/>
+<title>Admin Dashboard | lapakID</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#f9fafb;--bg2:#f2f4f7;--card:#fff;--border:#e4e7ec;--text:#101828;--muted:#667085;--purple:#465fff;--success:#12b76a;--warning:#f79009;--danger:#f04438;--font:'Outfit',sans-serif;--mono:'JetBrains Mono',monospace;}
+body.dark-mode{--bg:#000;--bg2:#0a0a0a;--card:#111;--border:#222;--text:#fff;--muted:#888;}
+body{background:var(--bg);color:var(--text);font-family:var(--font);transition:background .3s;min-height:100vh;display:flex;flex-direction:column;}
+.app-wrapper{display:flex;flex-direction:column;min-height:100vh;}
+.main-content{flex:1;max-width:1200px;margin:0 auto;padding:80px 16px 60px;width:100%;}
+@media(min-width:768px){.main-content{padding:88px 28px 60px}}
+nav{position:fixed;top:0;left:0;right:0;z-index:200;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+body.dark-mode nav{background:rgba(0,0,0,.96)}
+.nav-left{display:flex;align-items:center;gap:10px}
+.nav-logo{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:800;color:var(--text);text-decoration:none}
+.nav-logo-icon{width:26px;height:26px;border-radius:8px;overflow:hidden}
+.nav-logo-icon img{width:100%;height:100%;object-fit:cover}
+.admin-badge{background:rgba(240,68,56,.12);color:var(--danger);border:1px solid rgba(240,68,56,.25);border-radius:40px;padding:2px 8px;font-size:.6rem;font-weight:700}
+.nav-right{display:flex;align-items:center;gap:8px}
+.dropdown{position:relative}
+.dropdown-trigger{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);padding:3px 10px 3px 6px;border-radius:99px;cursor:pointer}
+.user-avatar{width:26px;height:26px;border-radius:50%;background:var(--danger);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.65rem}
+.user-name{font-size:.65rem;font-weight:600;display:none}
+@media(min-width:480px){.user-name{display:inline-block}}
+.dropdown-arrow{font-size:.55rem;color:var(--muted);transition:transform .2s}
+.dropdown.active .dropdown-arrow{transform:rotate(180deg)}
+.dropdown-menu{position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:16px;min-width:190px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.12);opacity:0;visibility:hidden;transform:translateY(-8px);transition:all .2s;z-index:300}
+.dropdown.active .dropdown-menu{opacity:1;visibility:visible;transform:translateY(0)}
+.dropdown-item{display:flex;align-items:center;gap:8px;padding:9px 14px;color:var(--text);font-size:.72rem;font-weight:500;border-bottom:1px solid var(--border);cursor:pointer;text-decoration:none}
+.dropdown-item:last-child{border-bottom:none}
+.dropdown-item:hover{background:var(--bg2);color:var(--purple)}
+.dropdown-item.logout{color:var(--danger)}
+
+.page-header{margin-bottom:22px}
+.page-header h1{font-size:1.4rem;font-weight:800;letter-spacing:-.3px}
+.page-header p{color:var(--muted);font-size:.78rem;margin-top:4px}
+
+.stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:24px}
+@media(min-width:640px){.stats-grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:900px){.stats-grid{grid-template-columns:repeat(6,1fr)}}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;text-align:center}
+.stat-icon{font-size:1.4rem;margin-bottom:6px}
+.stat-val{font-size:1.2rem;font-weight:800}
+.stat-lbl{font-size:.62rem;color:var(--muted);margin-top:2px}
+
+.quick-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:24px}
+@media(min-width:480px){.quick-actions{grid-template-columns:repeat(4,1fr)}}
+.qa-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;text-align:center;text-decoration:none;color:var(--text);transition:all .2s}
+.qa-card:hover{border-color:var(--purple);transform:translateY(-2px);box-shadow:0 4px 14px rgba(70,95,255,.1)}
+.qa-icon{font-size:1.3rem;margin-bottom:6px}
+.qa-label{font-size:.72rem;font-weight:600}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:18px}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.card-title{font-size:.95rem;font-weight:700}
+.card-link{font-size:.72rem;color:var(--purple);text-decoration:none;font-weight:600;border:1px solid rgba(70,95,255,.3);padding:4px 10px;border-radius:40px}
+.card-link:hover{background:rgba(70,95,255,.06)}
+
+.tx-item{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);gap:8px}
+.tx-item:last-child{border-bottom:none}
+.tx-left{flex:1;min-width:0}
+.tx-id{font-size:.78rem;font-weight:600;font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tx-user{font-size:.62rem;color:var(--muted);margin-top:1px}
+.tx-right{text-align:right;flex-shrink:0}
+.tx-price{font-size:.78rem;font-weight:700;color:var(--success)}
+.tx-time{font-size:.6rem;color:var(--muted);margin-top:1px}
+.tier-badge{display:inline-block;padding:1px 7px;border-radius:5px;font-size:.58rem;font-weight:700}
+.tb-low{background:rgba(107,114,128,.15);color:#6b7280}
+.tb-medium{background:rgba(59,130,246,.15);color:#3b82f6}
+.tb-high{background:rgba(249,115,22,.15);color:#f97316}
+.tb-legend{background:rgba(234,179,8,.15);color:#eab308}
+
+.topup-item{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);gap:8px}
+.topup-item:last-child{border-bottom:none}
+.topup-left{flex:1}
+.topup-user{font-size:.78rem;font-weight:600}
+.topup-coins{font-size:.7rem;color:var(--muted)}
+.topup-actions{display:flex;gap:6px}
+.btn-approve{background:rgba(18,183,106,.12);color:var(--success);border:1px solid rgba(18,183,106,.3);border-radius:8px;padding:4px 10px;font-size:.65rem;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-approve:hover{background:var(--success);color:#fff}
+.btn-reject{background:rgba(240,68,56,.12);color:var(--danger);border:1px solid rgba(240,68,56,.3);border-radius:8px;padding:4px 10px;font-size:.65rem;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-reject:hover{background:var(--danger);color:#fff}
+.empty-state{text-align:center;padding:24px;color:var(--muted);font-size:.8rem}
+.darkmode-btn{background:var(--bg2);border:1px solid var(--border);width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.95rem}
+footer{border-top:1px solid var(--border);padding:16px;text-align:center;background:var(--card);color:var(--muted);font-size:.65rem;}
+.skeleton{background:linear-gradient(90deg,var(--border) 25%,var(--bg2) 50%,var(--border) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;height:14px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+</style>
+</head>
+<body>
+<div class="app-wrapper">
+<nav>
+  <div class="nav-left">
+    <a href="/admin/dashboard.html" class="nav-logo">
+      <div class="nav-logo-icon"><img src="https://files.catbox.moe/34dics.png" alt="lapakID"/></div>
+      lapakID
+    </a>
+    <span class="admin-badge">ADMIN</span>
+  </div>
+  <div class="nav-right">
+    <div class="dropdown" id="userDropdown">
+      <div class="dropdown-trigger">
+        <div class="user-avatar" id="navAvatar">A</div>
+        <span class="user-name" id="navUsername">Admin</span>
+        <span class="dropdown-arrow">▼</span>
+      </div>
+      <div class="dropdown-menu">
+        <a href="/admin/dashboard.html" class="dropdown-item">📊 Dashboard</a>
+        <a href="/admin/addid.html" class="dropdown-item">➕ Tambah ID</a>
+        <a href="/admin/ids.html" class="dropdown-item">🎮 Kelola ID</a>
+        <a href="/admin/topup.html" class="dropdown-item">🪙 Kelola Topup</a>
+        <a href="/admin/users.html" class="dropdown-item">👥 Kelola User</a>
+        <a href="/admin/transaksi.html" class="dropdown-item">📋 Transaksi</a>
+        <div class="dropdown-item logout" id="logoutBtn">🚪 Logout</div>
+      </div>
+    </div>
+    <button class="darkmode-btn" id="darkModeToggle">🌙</button>
+  </div>
+</nav>
+
+<div class="main-content">
+  <div class="page-header">
+    <h1>📊 Dashboard Admin</h1>
+    <p>Pantau semua aktivitas lapakID</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-icon">🎮</div><div class="stat-val" id="sIdAvail">—</div><div class="stat-lbl">ID Tersedia</div></div>
+    <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-val" id="sSold">—</div><div class="stat-lbl">Terjual</div></div>
+    <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-val" id="sUsers">—</div><div class="stat-lbl">Total User</div></div>
+    <div class="stat-card"><div class="stat-icon">🪙</div><div class="stat-val" id="sPending">—</div><div class="stat-lbl">Pending Topup</div></div>
+    <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-val" id="sPendapatan">—</div><div class="stat-lbl">Total Omzet</div></div>
+    <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-val" id="sHariIni">—</div><div class="stat-lbl">Hari Ini</div></div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="quick-actions">
+    <a href="/admin/addid.html" class="qa-card"><div class="qa-icon">➕</div><div class="qa-label">Tambah ID</div></a>
+    <a href="/admin/ids.html" class="qa-card"><div class="qa-icon">🎮</div><div class="qa-label">Kelola ID</div></a>
+    <a href="/admin/topup.html" class="qa-card"><div class="qa-icon">🪙</div><div class="qa-label">Topup Request</div></a>
+    <a href="/admin/users.html" class="qa-card"><div class="qa-icon">👥</div><div class="qa-label">Kelola User</div></a>
+  </div>
+
+  <!-- Pending Topup -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">🪙 Pending Top Up</span>
+      <a href="/admin/topup.html" class="card-link">Lihat semua →</a>
+    </div>
+    <div id="pendingTopupList"><div class="skeleton" style="margin:8px 0"></div><div class="skeleton" style="margin:8px 0;width:60%"></div></div>
+  </div>
+
+  <!-- Recent Transaksi -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">📋 Transaksi Terbaru</span>
+      <a href="/admin/transaksi.html" class="card-link">Lihat semua →</a>
+    </div>
+    <div id="recentTxList"><div class="skeleton" style="margin:8px 0"></div><div class="skeleton" style="margin:8px 0;width:70%"></div></div>
+  </div>
+</div>
+
+<footer>© 2026 lapakID Admin</footer>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+Auth.requireAdmin('/signin.html');
+const user = Auth.getUser() || {};
+document.getElementById('navAvatar').textContent = (user.fullName||user.username||'A').charAt(0).toUpperCase();
+document.getElementById('navUsername').textContent = user.username || 'Admin';
+
+async function loadDashboard(){
+  try {
+    const [statsRes, topupRes] = await Promise.all([
+      AdminAPI.stats(),
+      AdminAPI.getTopup({ status:'pending', limit:5 })
+    ]);
+    if(statsRes && statsRes.success){
+      const s = statsRes.stats;
+      document.getElementById('sIdAvail').textContent = s.totalId;
+      document.getElementById('sSold').textContent = s.totalSold;
+      document.getElementById('sUsers').textContent = s.totalUsers;
+      document.getElementById('sPending').textContent = s.pendingTopup;
+      document.getElementById('sPendapatan').textContent = 'Rp'+Math.round(s.pendapatan/1000)+'K';
+      document.getElementById('sHariIni').textContent = 'Rp'+Math.round((s.pendapatanHariIni||0)/1000)+'K';
+
+      // Recent Tx
+      const txEl = document.getElementById('recentTxList');
+      if(statsRes.recentTx && statsRes.recentTx.length){
+        txEl.innerHTML = statsRes.recentTx.map(tx=>{
+          const tier=(tx.tier||'low').toLowerCase();
+          return `<div class="tx-item">
+            <div class="tx-left">
+              <div class="tx-id">${tx.gameId||tx.txId} <span class="tier-badge tb-${tier}">${tier}</span></div>
+              <div class="tx-user">@${tx.username}</div>
+            </div>
+            <div class="tx-right">
+              <div class="tx-price">+Rp${Number(tx.price).toLocaleString('id-ID')}</div>
+              <div class="tx-time">${new Date(tx.createdAt).toLocaleString('id-ID')}</div>
+            </div>
+          </div>`;
+        }).join('');
+      } else { txEl.innerHTML='<div class="empty-state">Belum ada transaksi.</div>'; }
+    }
+
+    if(topupRes && topupRes.success){
+      const el = document.getElementById('pendingTopupList');
+      if(topupRes.topups && topupRes.topups.length){
+        el.innerHTML = topupRes.topups.map(t=>`
+          <div class="topup-item" id="titem-${t.topupId}">
+            <div class="topup-left">
+              <div class="topup-user">@${t.username}</div>
+              <div class="topup-coins">${Number(t.coins).toLocaleString()} Coins — Rp${Number(t.amount).toLocaleString('id-ID')}</div>
+            </div>
+            <div class="topup-actions">
+              <button class="btn-approve" onclick="approveTopup('${t.topupId}')">✓ Acc</button>
+              <button class="btn-reject" onclick="rejectTopup('${t.topupId}')">✕ Tolak</button>
+            </div>
+          </div>`).join('');
+      } else { el.innerHTML='<div class="empty-state">Tidak ada topup pending.</div>'; }
+    }
+  } catch(e){ console.error(e); }
+}
+
+async function approveTopup(id){
+  const res = await AdminAPI.approveTopup(id);
+  if(res && res.success){ showToast('✅ '+res.message,'success'); document.getElementById('titem-'+id)?.remove(); }
+  else showToast('❌ '+(res?.message||'Gagal'),'error');
+}
+async function rejectTopup(id){
+  const reason = prompt('Alasan penolakan (opsional):') || '';
+  const res = await AdminAPI.rejectTopup(id, reason);
+  if(res && res.success){ showToast('❌ Topup ditolak','info'); document.getElementById('titem-'+id)?.remove(); }
+  else showToast('❌ '+(res?.message||'Gagal'),'error');
+}
+
+const drop = document.getElementById('userDropdown');
+drop.addEventListener('click',e=>{e.stopPropagation();drop.classList.toggle('active');});
+document.addEventListener('click',()=>drop.classList.remove('active'));
+document.getElementById('logoutBtn').addEventListener('click',()=>{Auth.clear();window.location.href='/signin.html';});
+function initDarkMode(){const btn=document.getElementById('darkModeToggle');let dark=localStorage.getItem('darkMode')==='true';const a=d=>{document.body.classList.toggle('dark-mode',d);btn.textContent=d?'☀️':'🌙';localStorage.setItem('darkMode',d);};a(dark);btn.onclick=()=>{dark=!dark;a(dark);};}
+initDarkMode();loadDashboard();
+</script>
+</body>
+</html>
