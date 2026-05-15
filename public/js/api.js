@@ -15,6 +15,12 @@ const Auth = {
   setUser: (u) => localStorage.setItem('lapakid_current_user', JSON.stringify(u)),
   removeUser: () => localStorage.removeItem('lapakid_current_user'),
 
+  // ✅ METHOD INI YANG PENTING UNTUK SIGNUP/SIGNIN
+  setSession: (token, user) => {
+    Auth.setToken(token);
+    Auth.setUser(user);
+  },
+
   isLoggedIn: () => !!localStorage.getItem('lapakid_token'),
   isAdmin: () => {
     const u = Auth.getUser();
@@ -37,7 +43,6 @@ async function apiFetch(path, options = {}) {
   const res = await fetch(API_BASE + path, { ...options, headers });
   const data = await res.json();
 
-  // Token expired → logout otomatis
   if (res.status === 401) {
     Auth.logout();
     return;
@@ -146,3 +151,16 @@ function showToast(msg, type = 'info') {
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
 }
+
+// ─── EXPORT KE WINDOW ─────────────────────────────────────────────────────
+window.Auth = Auth;
+window.AuthAPI = AuthAPI;
+window.UserAPI = UserAPI;
+window.IdsAPI = IdsAPI;
+window.PaymentAPI = PaymentAPI;
+window.TransaksiAPI = TransaksiAPI;
+window.TopupAPI = TopupAPI;
+window.AdminAPI = AdminAPI;
+window.requireLogin = requireLogin;
+window.requireAdmin = requireAdmin;
+window.showToast = showToast;
