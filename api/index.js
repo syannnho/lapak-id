@@ -1,762 +1,166 @@
-// api/index.js — lapakID Backend — semua endpoint 1 file (Vercel Serverless)
-const express = require('express');
-const { MongoClient, ObjectId } = require('mongodb');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const cors = require('cors');
-const crypto = require('crypto');
+// frontend/public/js/api.js
+// Ganti BACKEND_URL dengan URL Railway/Render kamu setelah deploy
+const BACKEND_URL = 'https://lapakid-backend.railway.app'; // ← GANTI INI
 
-const app = express();
-
-// ─── CORS — hanya izinkan domain sendiri ─────────────────────────────────────
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-app.use(cors({
-  origin: (origin, cb) => {
-    // Izinkan jika: tidak ada origin (curl/server), atau domain ada di whitelist, atau belum diset
-    if (!origin || ALLOWED_ORIGINS.length === 0 || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    return cb(new Error('CORS: origin tidak diizinkan'));
+// ─── AUTH ────────────────────────────────────────────────────────────────────
+const Auth = {
+  getToken:   () => localStorage.getItem('lapakid_token'),
+  getUser:    () => { try { return JSON.parse(localStorage.getItem('lapakid_user')); } catch { return null; } },
+  setSession: (token, user) => {
+    localStorage.setItem('lapakid_token', token);
+    localStorage.setItem('lapakid_user', JSON.stringify(user));
   },
-  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization'],
-  credentials: true
-}));
-app.options('*', cors());
-app.use(express.json({ limit: '10kb' })); // batasi body size maks 10KB
-
-// ─── SECURITY HEADERS ────────────────────────────────────────────────────────
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
-  // Hapus header yang bocorkan info server
-  res.removeHeader('X-Powered-By');
-  next();
-});
-
-// ─── RATE LIMITER (in-memory, tanpa package tambahan) ────────────────────────
-// Maks 60 request/menit per IP untuk endpoint biasa
-// Maks 10 request/menit per IP untuk endpoint sensitif (login, register)
-const _rateStore = new Map(); // { ip_endpoint: { count, resetAt } }
-
-function rateLimit(maxReq, windowMs = 60000) {
-  return (req, res, next) => {
-    const ip  = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
-    const key = ip + '|' + req.path;
-    const now = Date.now();
-    const entry = _rateStore.get(key);
-
-    if (!entry || now > entry.resetAt) {
-      _rateStore.set(key, { count: 1, resetAt: now + windowMs });
-      return next();
-    }
-    entry.count++;
-    if (entry.count > maxReq) {
-      const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
-      res.setHeader('Retry-After', retryAfter);
-      return res.status(429).json({ success: false, message: `Terlalu banyak percobaan. Coba lagi dalam ${retryAfter} detik.` });
-    }
-    next();
-  };
-}
-
-// Bersihkan rate store setiap 5 menit biar tidak memory leak
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of _rateStore) { if (now > v.resetAt) _rateStore.delete(k); }
-}, 5 * 60 * 1000);
-
-// ─── BRUTE FORCE TRACKER untuk login ─────────────────────────────────────────
-// Kunci IP selama 15 menit setelah 5x gagal login
-const _loginFails = new Map(); // { ip: { count, lockedUntil } }
-
-function checkBruteForce(req, res, next) {
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
-  const entry = _loginFails.get(ip);
-  const now = Date.now();
-
-  if (entry?.lockedUntil && now < entry.lockedUntil) {
-    const wait = Math.ceil((entry.lockedUntil - now) / 1000 / 60);
-    return res.status(429).json({ success: false, message: `Akun terkunci karena terlalu banyak percobaan. Coba lagi dalam ${wait} menit.` });
+  clear: () => {
+    localStorage.removeItem('lapakid_token');
+    localStorage.removeItem('lapakid_user');
+  },
+  isLoggedIn: () => !!localStorage.getItem('lapakid_token'),
+  isAdmin:    () => { const u = Auth.getUser(); return u?.role === 'admin'; },
+  requireLogin: (redirect = '/signin.html') => {
+    if (!Auth.isLoggedIn()) { window.location.href = redirect; return false; }
+    return true;
+  },
+  requireAdmin: (redirect = '/signin.html') => {
+    if (!Auth.isLoggedIn() || !Auth.isAdmin()) { window.location.href = redirect; return false; }
+    return true;
   }
-  next();
-}
+};
 
-function recordLoginFail(req) {
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
-  const entry = _loginFails.get(ip) || { count: 0, lockedUntil: null };
-  entry.count++;
-  if (entry.count >= 5) {
-    entry.lockedUntil = Date.now() + 15 * 60 * 1000; // kunci 15 menit
-    entry.count = 0;
-  }
-  _loginFails.set(ip, entry);
-}
+// ─── FETCH HELPER ─────────────────────────────────────────────────────────────
+async function apiFetch(path, options = {}) {
+  const token = Auth.getToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  if (options.headers) Object.assign(headers, options.headers);
 
-function clearLoginFail(req) {
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
-  _loginFails.delete(ip);
-}
-
-// ─── CONFIG ──────────────────────────────────────────────────────────────────
-const MONGO_URI   = process.env.MONGODB_URI;
-const JWT_SECRET  = process.env.JWT_SECRET;
-const INIT_SECRET = process.env.INIT_SECRET || 'lapakid_init_2026';
-const ENC_KEY     = process.env.ENC_KEY;
-const JWT_EXPIRES = '7d';
-const PRICE_MAP   = { low: 125000, medium: 450000, high: 850000, legend: 1350000 };
-
-if (!MONGO_URI)  throw new Error('MONGODB_URI belum diset di environment variables!');
-if (!JWT_SECRET) throw new Error('JWT_SECRET belum diset di environment variables!');
-
-// ─── ENKRIPSI UID & PASSWORD ID (AES-256-GCM) ────────────────────────────────
-// Digunakan untuk menyimpan credentials ID game secara aman di MongoDB
-// ENC_KEY harus 64 hex chars (32 bytes) — generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-
-function encrypt(text) {
-  if (!ENC_KEY || !text) return text; // fallback jika ENC_KEY belum diset
+  let res;
   try {
-    const key = Buffer.from(ENC_KEY, 'hex');
-    const iv  = crypto.randomBytes(12); // 96-bit IV untuk GCM
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-    const encrypted = Buffer.concat([cipher.update(String(text), 'utf8'), cipher.final()]);
-    const tag = cipher.getAuthTag(); // authentication tag untuk verifikasi integritas
-    // Format: iv(24) + tag(32) + encrypted — semua hex
-    return iv.toString('hex') + tag.toString('hex') + encrypted.toString('hex');
+    res = await fetch(BACKEND_URL + '/api' + path, {
+      ...options,
+      headers,
+      // Tidak pakai credentials: 'include' karena backend beda domain
+    });
   } catch (e) {
-    console.error('Encrypt error:', e.message);
-    return text;
+    console.error('Network error:', e);
+    showToast('❌ Tidak bisa terhubung ke server', 'error');
+    return { success: false, message: 'Tidak bisa terhubung ke server. Cek koneksi internet.' };
   }
-}
 
-function decrypt(encText) {
-  if (!ENC_KEY || !encText) return encText;
-  // Kalau bukan format enkripsi (data lama plain text), return as-is
-  if (encText.length < 56) return encText;
+  // Sesi habis
+  if (res.status === 401) {
+    Auth.clear();
+    window.location.href = '/signin.html';
+    return null;
+  }
+
+  // Rate limited
+  if (res.status === 429) {
+    const retryAfter = res.headers.get('Retry-After') || '60';
+    showToast(`⚠️ Terlalu banyak request. Tunggu ${retryAfter} detik.`, 'warning');
+    return { success: false, message: 'Rate limited' };
+  }
+
   try {
-    const key       = Buffer.from(ENC_KEY, 'hex');
-    const iv        = Buffer.from(encText.slice(0, 24), 'hex');
-    const tag       = Buffer.from(encText.slice(24, 56), 'hex');
-    const encrypted = Buffer.from(encText.slice(56), 'hex');
-    const decipher  = crypto.createDecipheriv('aes-256-gcm', key, iv);
-    decipher.setAuthTag(tag);
-    return decipher.update(encrypted) + decipher.final('utf8');
-  } catch (e) {
-    // Kalau gagal decrypt (mungkin data lama), return as-is
-    return encText;
-  }
-}
-
-// ─── DATABASE (cached connection untuk serverless) ───────────────────────────
-let _client = null;
-
-async function getDb() {
-  if (_client) {
-    try {
-      // ping untuk cek koneksi masih hidup
-      await _client.db('admin').command({ ping: 1 });
-      return _client.db('lapakid');
-    } catch (_) {
-      _client = null;
-    }
-  }
-  _client = new MongoClient(MONGO_URI, {
-    serverSelectionTimeoutMS: 8000,
-    connectTimeoutMS: 8000,
-  });
-  await _client.connect();
-  return _client.db('lapakid');
-}
-
-// ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
-function auth(req, res, next) {
-  const h = req.headers.authorization;
-  if (!h || !h.startsWith('Bearer '))
-    return res.status(401).json({ success: false, message: 'Token tidak ditemukan' });
-  try {
-    req.user = jwt.verify(h.slice(7), JWT_SECRET);
-    next();
+    return await res.json();
   } catch {
-    return res.status(401).json({ success: false, message: 'Token expired, silakan login ulang' });
+    return { success: false, message: 'Response tidak valid (status ' + res.status + ')' };
   }
 }
 
-function adminOnly(req, res, next) {
-  auth(req, res, () => {
-    if (req.user.role !== 'admin')
-      return res.status(403).json({ success: false, message: 'Hanya admin yang bisa akses ini' });
-    next();
-  });
+// ─── API MODULES ──────────────────────────────────────────────────────────────
+const AuthAPI = {
+  register: b  => apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(b) }),
+  login:    b  => apiFetch('/auth/login',    { method: 'POST', body: JSON.stringify(b) }),
+  me:       () => apiFetch('/auth/me'),
+};
+
+const UserAPI = {
+  profile:        ()   => apiFetch('/user/profile'),
+  updateProfile:  b    => apiFetch('/user/profile',    { method: 'PUT',    body: JSON.stringify(b) }),
+  getCart:        ()   => apiFetch('/user/cart'),
+  addToCart:      id   => apiFetch('/user/cart',       { method: 'POST',   body: JSON.stringify({ idItem: id }) }),
+  removeFromCart: id   => apiFetch('/user/cart/' + id, { method: 'DELETE' }),
+  clearCart:      ()   => apiFetch('/user/cart',       { method: 'DELETE' }),
+};
+
+const IdsAPI = {
+  getAll: (p = {}) => apiFetch('/ids?' + new URLSearchParams(p)),
+  getOne: id       => apiFetch('/ids/' + id),
+};
+
+const PaymentAPI = {
+  buy:     id => apiFetch('/payment/buy',      { method: 'POST', body: JSON.stringify({ idItem: id }) }),
+  buyCart: () => apiFetch('/payment/buy-cart', { method: 'POST' }),
+};
+
+const TransaksiAPI = {
+  list:      (p = {}) => apiFetch('/transaksi?' + new URLSearchParams(p)),
+  purchases: (p = {}) => apiFetch('/transaksi/purchases?' + new URLSearchParams(p)),
+};
+
+const TopupAPI = {
+  request: b  => apiFetch('/topup/request', { method: 'POST', body: JSON.stringify(b) }),
+  history: () => apiFetch('/topup/history'),
+};
+
+const AdminAPI = {
+  stats:        ()          => apiFetch('/admin/stats'),
+  users:        (p = {})   => apiFetch('/admin/users?' + new URLSearchParams(p)),
+  addId:        b           => apiFetch('/admin/ids',                  { method: 'POST',   body: JSON.stringify(b) }),
+  getIds:       (p = {})   => apiFetch('/admin/ids?' + new URLSearchParams(p)),
+  deleteId:     id          => apiFetch('/admin/ids/' + id,            { method: 'DELETE' }),
+  transaksi:    (p = {})   => apiFetch('/admin/transaksi?' + new URLSearchParams(p)),
+  getTopup:     (p = {})   => apiFetch('/admin/topup?' + new URLSearchParams(p)),
+  approveTopup: id          => apiFetch('/admin/topup/' + id + '/approve', { method: 'PUT' }),
+  rejectTopup:  (id, reason) => apiFetch('/admin/topup/' + id + '/reject', { method: 'PUT', body: JSON.stringify({ reason }) }),
+  editCoins:    (uid, coins) => apiFetch('/admin/users/' + uid + '/coins',  { method: 'PUT', body: JSON.stringify({ coins }) }),
+};
+
+// ─── UI HELPERS ───────────────────────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+  const colors = { success: '#12b76a', warning: '#f79009', error: '#f04438', info: '#465fff' };
+  const el = document.createElement('div');
+  el.textContent = msg;
+  el.style.cssText = `position:fixed;bottom:84px;right:16px;padding:10px 18px;border-radius:40px;
+    z-index:9999;font-size:.75rem;color:#fff;font-family:Outfit,sans-serif;font-weight:600;
+    background:${colors[type]||colors.info};box-shadow:0 4px 16px rgba(0,0,0,.2);
+    transition:opacity .3s;pointer-events:none;max-width:280px`;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 320); }, 2800);
 }
 
-function genId(prefix = 'TX') {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,8).toUpperCase()}`;
+function initDarkMode(btnId = 'darkModeToggle') {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  let dark = localStorage.getItem('darkMode') === 'true';
+  const apply = d => {
+    document.body.classList.toggle('dark-mode', d);
+    btn.textContent = d ? '☀️' : '🌙';
+    localStorage.setItem('darkMode', d);
+  };
+  apply(dark);
+  btn.onclick = () => { dark = !dark; apply(dark); };
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// AUTH
-// ════════════════════════════════════════════════════════════════════════════
-
-// POST /api/auth/register — rate limit 5x/menit per IP
-app.post('/api/auth/register', rateLimit(5, 60000), async (req, res) => {
-  try {
-    const { username, fullName, emailPhone, password } = req.body;
-    if (!username || !fullName || !emailPhone || !password)
-      return res.status(400).json({ success: false, message: 'Semua field wajib diisi' });
-    if (password.length < 6)
-      return res.status(400).json({ success: false, message: 'Password minimal 6 karakter' });
-
-    // Validasi format username: hanya huruf, angka, underscore
-    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username))
-      return res.status(400).json({ success: false, message: 'Username hanya boleh huruf, angka, underscore (3-20 karakter)' });
-
-    const db = await getDb();
-    const existing = await db.collection('users').findOne({
-      $or: [{ username: username.toLowerCase() }, { emailPhone }]
-    });
-    if (existing) {
-      const field = existing.username === username.toLowerCase() ? 'Username' : 'Email/WhatsApp';
-      return res.status(409).json({ success: false, message: `${field} sudah terdaftar` });
-    }
-
-    const hashed = await bcrypt.hash(password, 10);
-    const doc = {
-      username: username.toLowerCase(),
-      fullName,
-      emailPhone,
-      password: hashed,
-      role: 'user',
-      coins: 0,
-      avatar: null,
-      totalTransaksi: { success: 0, pending: 0, gagal: 0 },
-      cart: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    const result = await db.collection('users').insertOne(doc);
-    const token = jwt.sign({ id: result.insertedId.toString(), username: doc.username, role: 'user' }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
-
-    return res.status(201).json({
-      success: true, message: 'Pendaftaran berhasil', token,
-      user: { id: result.insertedId, username: doc.username, fullName, emailPhone, role: 'user', coins: 0 }
-    });
-  } catch (err) {
-    console.error('register:', err);
-    return res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+function initDropdown(dropId = 'userDropdown', logoutId = 'logoutBtn') {
+  const drop = document.getElementById(dropId);
+  if (drop) {
+    drop.addEventListener('click', e => { e.stopPropagation(); drop.classList.toggle('active'); });
+    document.addEventListener('click', () => drop.classList.remove('active'));
   }
-});
-
-// POST /api/auth/login — rate limit 10x/menit + brute force lock
-app.post('/api/auth/login', rateLimit(10, 60000), checkBruteForce, async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    if (!username || !password)
-      return res.status(400).json({ success: false, message: 'Username dan password wajib diisi' });
-
-    const db = await getDb();
-    let user = await db.collection('users').findOne({ username: username.toLowerCase() });
-    let role = user?.role || 'user';
-
-    if (!user) {
-      user = await db.collection('admins').findOne({ username: username.toLowerCase() });
-      if (user) role = 'admin';
-    }
-
-    if (!user) {
-      recordLoginFail(req); // catat gagal login
-      return res.status(401).json({ success: false, message: 'Username atau password salah' });
-    }
-
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok) {
-      recordLoginFail(req); // catat gagal login
-      return res.status(401).json({ success: false, message: 'Username atau password salah' });
-    }
-
-    clearLoginFail(req); // reset counter kalau berhasil
-    const token = jwt.sign({ id: user._id.toString(), username: user.username, role }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
-    return res.json({
-      success: true, message: 'Login berhasil', token,
-      user: { id: user._id, username: user.username, fullName: user.fullName, emailPhone: user.emailPhone, role, coins: user.coins || 0, avatar: user.avatar || null, totalTransaksi: user.totalTransaksi || {} }
-    });
-  } catch (err) {
-    console.error('login:', err);
-    return res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  const logoutBtn = document.getElementById(logoutId);
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => { Auth.clear(); window.location.href = '/signin.html'; });
   }
-});
+}
 
-// GET /api/auth/me
-app.get('/api/auth/me', auth, async (req, res) => {
-  try {
-    const db = await getDb();
-    const col = req.user.role === 'admin' ? 'admins' : 'users';
-    const user = await db.collection(col).findOne({ _id: new ObjectId(req.user.id) }, { projection: { password: 0 } });
-    if (!user) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
-    return res.json({ success: true, user: { ...user, role: req.user.role } });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-});
+function fillNavUser(user) {
+  if (!user) return;
+  const el = id => document.getElementById(id);
+  if (el('navAvatar'))   el('navAvatar').textContent  = (user.fullName || user.username || 'U').charAt(0).toUpperCase();
+  if (el('navUsername')) el('navUsername').textContent = user.username || '';
+  if (el('navCoins'))    el('navCoins').textContent    = 'C.' + Number(user.coins || 0).toLocaleString('id-ID');
+}
 
-// ════════════════════════════════════════════════════════════════════════════
-// USER
-// ════════════════════════════════════════════════════════════════════════════
-
-app.get('/api/user/profile', auth, async (req, res) => {
-  try {
-    const db = await getDb();
-    const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) }, { projection: { password: 0 } });
-    if (!user) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
-    return res.json({ success: true, user });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.put('/api/user/profile', auth, async (req, res) => {
-  try {
-    const { fullName, emailPhone, avatar } = req.body;
-    const db = await getDb();
-    const upd = { updatedAt: new Date() };
-    if (fullName) upd.fullName = fullName;
-    if (emailPhone) upd.emailPhone = emailPhone;
-    if (avatar !== undefined) upd.avatar = avatar;
-    await db.collection('users').updateOne({ _id: new ObjectId(req.user.id) }, { $set: upd });
-    return res.json({ success: true, message: 'Profil diperbarui' });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ─── CART ─────────────────────────────────────────────────────────────────────
-app.get('/api/user/cart', auth, async (req, res) => {
-  try {
-    const db = await getDb();
-    const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) }, { projection: { cart: 1 } });
-    return res.json({ success: true, cart: user?.cart || [] });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.post('/api/user/cart', auth, async (req, res) => {
-  try {
-    const { idItem } = req.body;
-    if (!idItem) return res.status(400).json({ success: false, message: 'idItem wajib diisi' });
-    const db = await getDb();
-    const idDoc = await db.collection('ids').findOne({ _id: new ObjectId(idItem), status: 'available' });
-    if (!idDoc) return res.status(404).json({ success: false, message: 'ID tidak tersedia' });
-    const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
-    if (user?.cart?.some(c => c.idItem === idItem))
-      return res.status(409).json({ success: false, message: 'ID sudah ada di keranjang' });
-    await db.collection('users').updateOne(
-      { _id: new ObjectId(req.user.id) },
-      { $push: { cart: { idItem, gameId: idDoc.gameId, tier: idDoc.tier, price: idDoc.price, addedAt: new Date() } }, $set: { updatedAt: new Date() } }
-    );
-    return res.json({ success: true, message: 'Ditambahkan ke keranjang' });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.delete('/api/user/cart/:idItem', auth, async (req, res) => {
-  try {
-    const db = await getDb();
-    await db.collection('users').updateOne(
-      { _id: new ObjectId(req.user.id) },
-      { $pull: { cart: { idItem: req.params.idItem } }, $set: { updatedAt: new Date() } }
-    );
-    return res.json({ success: true, message: 'Item dihapus' });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.delete('/api/user/cart', auth, async (req, res) => {
-  try {
-    const db = await getDb();
-    await db.collection('users').updateOne({ _id: new ObjectId(req.user.id) }, { $set: { cart: [], updatedAt: new Date() } });
-    return res.json({ success: true, message: 'Keranjang dikosongkan' });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ════════════════════════════════════════════════════════════════════════════
-// IDS (public)
-// ════════════════════════════════════════════════════════════════════════════
-
-app.get('/api/ids', async (req, res) => {
-  try {
-    const { tier, sort, page = 1, limit = 24 } = req.query;
-    const db = await getDb();
-    const filter = { status: 'available' };
-    if (tier) filter.tier = tier;
-    const sortOpt = sort === 'price_asc' ? { price: 1 } : sort === 'price_desc' ? { price: -1 } : { addedAt: -1 };
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const [total, ids] = await Promise.all([
-      db.collection('ids').countDocuments(filter),
-      db.collection('ids').find(filter, { projection: { uid: 0, password: 0 } }).sort(sortOpt).skip(skip).limit(parseInt(limit)).toArray()
-    ]);
-    return res.json({ success: true, ids, total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.get('/api/ids/:id', async (req, res) => {
-  try {
-    const db = await getDb();
-    const doc = await db.collection('ids').findOne({ _id: new ObjectId(req.params.id), status: 'available' }, { projection: { uid: 0, password: 0 } });
-    if (!doc) return res.status(404).json({ success: false, message: 'ID tidak ditemukan atau sudah terjual' });
-    return res.json({ success: true, id: doc });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ════════════════════════════════════════════════════════════════════════════
-// PAYMENT
-// ════════════════════════════════════════════════════════════════════════════
-
-app.post('/api/payment/buy', auth, async (req, res) => {
-  try {
-    const { idItem } = req.body;
-    if (!idItem) return res.status(400).json({ success: false, message: 'idItem wajib diisi' });
-    const db = await getDb();
-
-    const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
-    if (!user) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
-
-    // Atomic lock: set status sold sekaligus
-    const r = await db.collection('ids').findOneAndUpdate(
-      { _id: new ObjectId(idItem), status: 'available' },
-      { $set: { status: 'sold', soldAt: new Date(), soldTo: req.user.id } },
-      { returnDocument: 'before' }
-    );
-    const idDoc = r?.value || r; // driver v5 returns doc directly
-    if (!idDoc || !idDoc._id)
-      return res.status(404).json({ success: false, message: 'ID tidak tersedia atau sudah terjual' });
-
-    if (user.coins < idDoc.price) {
-      // Rollback
-      await db.collection('ids').updateOne({ _id: idDoc._id }, { $set: { status: 'available', soldAt: null, soldTo: null } });
-      return res.status(402).json({ success: false, message: `Saldo tidak cukup. Saldo: Rp${user.coins.toLocaleString()}, Harga: Rp${idDoc.price.toLocaleString()}` });
-    }
-
-    const newCoins = user.coins - idDoc.price;
-    const txId = genId('TX');
-
-    await Promise.all([
-      db.collection('users').updateOne(
-        { _id: new ObjectId(req.user.id) },
-        { $set: { coins: newCoins, updatedAt: new Date() }, $inc: { 'totalTransaksi.success': 1 }, $pull: { cart: { idItem } } }
-      ),
-      db.collection('transaksi').insertOne({ txId, userId: req.user.id, username: user.username, idDocId: idDoc._id.toString(), gameId: idDoc.gameId, tier: idDoc.tier, price: idDoc.price, status: 'success', createdAt: new Date() }),
-      // Simpan terenkripsi di collection sold juga
-      db.collection('sold').insertOne({ txId, userId: req.user.id, username: user.username, gameId: idDoc.gameId, uid: idDoc.uid, password: idDoc.password, tier: idDoc.tier, price: idDoc.price, note: idDoc.note || '', soldAt: new Date() })
-    ]);
-
-    // Decrypt credentials sebelum dikirim ke pembeli
-    return res.json({ success: true, message: 'Pembelian berhasil!', transaction: { txId, gameId: idDoc.gameId, uid: decrypt(idDoc.uid), password: decrypt(idDoc.password), tier: idDoc.tier, price: idDoc.price, newCoins } });
-  } catch (err) {
-    console.error('buy:', err);
-    return res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-app.post('/api/payment/buy-cart', auth, async (req, res) => {
-  try {
-    const db = await getDb();
-    const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
-    if (!user?.cart?.length) return res.status(400).json({ success: false, message: 'Keranjang kosong' });
-
-    const locked = [], failed = [];
-    for (const item of user.cart) {
-      const r = await db.collection('ids').findOneAndUpdate(
-        { _id: new ObjectId(item.idItem), status: 'available' },
-        { $set: { status: 'sold', soldAt: new Date(), soldTo: req.user.id } },
-        { returnDocument: 'before' }
-      );
-      const doc = r?.value || r;
-      if (doc?._id) locked.push(doc); else failed.push(item.idItem);
-    }
-    if (!locked.length) return res.status(404).json({ success: false, message: 'Semua ID di keranjang tidak tersedia' });
-
-    const total = locked.reduce((s, d) => s + d.price, 0);
-    if (user.coins < total) {
-      for (const d of locked) await db.collection('ids').updateOne({ _id: d._id }, { $set: { status: 'available', soldAt: null, soldTo: null } });
-      return res.status(402).json({ success: false, message: `Saldo tidak cukup. Total: Rp${total.toLocaleString()}, Saldo: Rp${user.coins.toLocaleString()}` });
-    }
-
-    const purchases = [];
-    for (const d of locked) {
-      const txId = genId('TX');
-      await Promise.all([
-        db.collection('transaksi').insertOne({ txId, userId: req.user.id, username: user.username, idDocId: d._id.toString(), gameId: d.gameId, tier: d.tier, price: d.price, status: 'success', createdAt: new Date() }),
-        db.collection('sold').insertOne({ txId, userId: req.user.id, username: user.username, gameId: d.gameId, uid: d.uid, password: d.password, tier: d.tier, price: d.price, note: d.note || '', soldAt: new Date() })
-      ]);
-      purchases.push({ txId, gameId: d.gameId, uid: decrypt(d.uid), password: decrypt(d.password), tier: d.tier, price: d.price });
-    }
-
-    const newCoins = user.coins - total;
-    await db.collection('users').updateOne(
-      { _id: new ObjectId(req.user.id) },
-      { $set: { coins: newCoins, cart: [], updatedAt: new Date() }, $inc: { 'totalTransaksi.success': locked.length } }
-    );
-
-    return res.json({ success: true, message: `${locked.length} ID berhasil dibeli`, purchases, newCoins, failedItems: failed.length ? failed : undefined });
-  } catch (err) {
-    console.error('buy-cart:', err);
-    return res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-// ════════════════════════════════════════════════════════════════════════════
-// TRANSAKSI
-// ════════════════════════════════════════════════════════════════════════════
-
-app.get('/api/transaksi', auth, async (req, res) => {
-  try {
-    const { page = 1, limit = 20, status } = req.query;
-    const db = await getDb();
-    const filter = { userId: req.user.id };
-    if (status) filter.status = status;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const [total, transaksi] = await Promise.all([
-      db.collection('transaksi').countDocuments(filter),
-      db.collection('transaksi').find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
-    ]);
-    return res.json({ success: true, transaksi, total, page: parseInt(page) });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.get('/api/transaksi/purchases', auth, async (req, res) => {
-  try {
-    const { page = 1, limit = 20 } = req.query;
-    const db = await getDb();
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const [total, purchases] = await Promise.all([
-      db.collection('sold').countDocuments({ userId: req.user.id }),
-      db.collection('sold').find({ userId: req.user.id }).sort({ soldAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
-    ]);
-    // Decrypt credentials sebelum dikirim ke user
-    const decrypted = purchases.map(p => ({
-      ...p,
-      uid:      decrypt(p.uid),
-      password: decrypt(p.password)
-    }));
-    return res.json({ success: true, purchases: decrypted, total });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ════════════════════════════════════════════════════════════════════════════
-// TOPUP
-// ════════════════════════════════════════════════════════════════════════════
-
-app.post('/api/topup/request', auth, async (req, res) => {
-  try {
-    const { packageId, coins, amount } = req.body;
-    if (!coins || !amount) return res.status(400).json({ success: false, message: 'Data topup tidak lengkap' });
-    const db = await getDb();
-    const topupId = genId('TOP');
-    await db.collection('topup').insertOne({ topupId, userId: req.user.id, username: req.user.username, packageId: packageId || null, coins: parseInt(coins), amount: parseInt(amount), status: 'pending', createdAt: new Date() });
-    return res.json({ success: true, message: 'Request topup dikirim. Menunggu konfirmasi admin.', topupId });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.get('/api/topup/history', auth, async (req, res) => {
-  try {
-    const db = await getDb();
-    const history = await db.collection('topup').find({ userId: req.user.id }).sort({ createdAt: -1 }).limit(30).toArray();
-    return res.json({ success: true, history });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ════════════════════════════════════════════════════════════════════════════
-// ADMIN
-// ════════════════════════════════════════════════════════════════════════════
-
-app.get('/api/admin/stats', adminOnly, async (req, res) => {
-  try {
-    const db = await getDb();
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const [totalId, totalSold, totalUsers, pendingTopup, recentTx, revAll, revToday] = await Promise.all([
-      db.collection('ids').countDocuments({ status: 'available' }),
-      db.collection('sold').countDocuments(),
-      db.collection('users').countDocuments(),
-      db.collection('topup').countDocuments({ status: 'pending' }),
-      db.collection('transaksi').find().sort({ createdAt: -1 }).limit(5).toArray(),
-      db.collection('transaksi').aggregate([{ $match: { status: 'success' } }, { $group: { _id: null, t: { $sum: '$price' } } }]).toArray(),
-      db.collection('transaksi').aggregate([{ $match: { status: 'success', createdAt: { $gte: todayStart } } }, { $group: { _id: null, t: { $sum: '$price' } } }]).toArray()
-    ]);
-    return res.json({ success: true, stats: { totalId, totalSold, totalUsers, pendingTopup, pendapatan: revAll[0]?.t || 0, pendapatanHariIni: revToday[0]?.t || 0 }, recentTx });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.get('/api/admin/users', adminOnly, async (req, res) => {
-  try {
-    const { page = 1, limit = 25, search } = req.query;
-    const db = await getDb();
-    const filter = search ? { $or: [{ username: { $regex: search, $options: 'i' } }, { fullName: { $regex: search, $options: 'i' } }, { emailPhone: { $regex: search, $options: 'i' } }] } : {};
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const [total, users] = await Promise.all([
-      db.collection('users').countDocuments(filter),
-      db.collection('users').find(filter, { projection: { password: 0 } }).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
-    ]);
-    return res.json({ success: true, users, total, page: parseInt(page) });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.post('/api/admin/ids', adminOnly, async (req, res) => {
-  try {
-    const { gameId, uid, password, tier, note } = req.body;
-    if (!gameId || !uid || !password || !tier)
-      return res.status(400).json({ success: false, message: 'gameId, uid, password, tier wajib diisi' });
-    const t = tier.toLowerCase();
-    if (!PRICE_MAP[t])
-      return res.status(400).json({ success: false, message: 'Tier tidak valid. Pilih: low/medium/high/legend' });
-    const db = await getDb();
-    const exists = await db.collection('ids').findOne({ gameId });
-    if (exists) return res.status(409).json({ success: false, message: 'Game ID sudah ada di database' });
-
-    // Enkripsi UID & password sebelum disimpan ke MongoDB
-    const result = await db.collection('ids').insertOne({
-      gameId,
-      uid: encrypt(uid),           // 🔐 tersimpan terenkripsi
-      password: encrypt(password), // 🔐 tersimpan terenkripsi
-      tier: t,
-      price: PRICE_MAP[t],
-      note: note || '',
-      status: 'available',
-      addedBy: req.user.id,
-      addedAt: new Date()
-    });
-    await db.collection('admins').updateOne({ _id: new ObjectId(req.user.id) }, { $inc: { totalIdDitambah: 1 } });
-    return res.status(201).json({ success: true, message: `ID ${gameId} berhasil ditambahkan`, id: result.insertedId });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.get('/api/admin/ids', adminOnly, async (req, res) => {
-  try {
-    const { status, tier, page = 1, limit = 25 } = req.query;
-    const db = await getDb();
-    const filter = {};
-    if (status) filter.status = status;
-    if (tier) filter.tier = tier;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const [total, ids] = await Promise.all([
-      db.collection('ids').countDocuments(filter),
-      db.collection('ids').find(filter).sort({ addedAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
-    ]);
-    // Decrypt UID & password untuk tampilan admin
-    const result = ids.map(id => ({ ...id, uid: decrypt(id.uid), password: decrypt(id.password) }));
-    return res.json({ success: true, ids: result, total, page: parseInt(page) });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.delete('/api/admin/ids/:id', adminOnly, async (req, res) => {
-  try {
-    const db = await getDb();
-    const r = await db.collection('ids').deleteOne({ _id: new ObjectId(req.params.id), status: 'available' });
-    if (!r.deletedCount) return res.status(404).json({ success: false, message: 'ID tidak ditemukan atau sudah terjual' });
-    return res.json({ success: true, message: 'ID dihapus' });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.get('/api/admin/transaksi', adminOnly, async (req, res) => {
-  try {
-    const { page = 1, limit = 30, status, userId } = req.query;
-    const db = await getDb();
-    const filter = {};
-    if (status) filter.status = status;
-    if (userId) filter.userId = userId;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const [total, transaksi] = await Promise.all([
-      db.collection('transaksi').countDocuments(filter),
-      db.collection('transaksi').find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
-    ]);
-    return res.json({ success: true, transaksi, total, page: parseInt(page) });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.get('/api/admin/topup', adminOnly, async (req, res) => {
-  try {
-    const { status, page = 1, limit = 20 } = req.query;
-    const db = await getDb();
-    const filter = status ? { status } : {};
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const [total, topups] = await Promise.all([
-      db.collection('topup').countDocuments(filter),
-      db.collection('topup').find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
-    ]);
-    return res.json({ success: true, topups, total });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.put('/api/admin/topup/:topupId/approve', adminOnly, async (req, res) => {
-  try {
-    const db = await getDb();
-    const topup = await db.collection('topup').findOne({ topupId: req.params.topupId, status: 'pending' });
-    if (!topup) return res.status(404).json({ success: false, message: 'Request topup tidak ditemukan atau sudah diproses' });
-    await Promise.all([
-      db.collection('users').updateOne({ _id: new ObjectId(topup.userId) }, { $inc: { coins: topup.coins }, $set: { updatedAt: new Date() } }),
-      db.collection('topup').updateOne({ topupId: req.params.topupId }, { $set: { status: 'approved', approvedBy: req.user.id, approvedAt: new Date() } })
-    ]);
-    return res.json({ success: true, message: `Topup disetujui. +${topup.coins} coins ke @${topup.username}` });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.put('/api/admin/topup/:topupId/reject', adminOnly, async (req, res) => {
-  try {
-    const db = await getDb();
-    const topup = await db.collection('topup').findOne({ topupId: req.params.topupId, status: 'pending' });
-    if (!topup) return res.status(404).json({ success: false, message: 'Request tidak ditemukan atau sudah diproses' });
-    await db.collection('topup').updateOne({ topupId: req.params.topupId }, { $set: { status: 'rejected', rejectedBy: req.user.id, rejectedAt: new Date(), reason: req.body.reason || '' } });
-    return res.json({ success: true, message: 'Topup ditolak' });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.put('/api/admin/users/:userId/coins', adminOnly, async (req, res) => {
-  try {
-    const { coins } = req.body;
-    if (coins === undefined || isNaN(coins)) return res.status(400).json({ success: false, message: 'Jumlah coins tidak valid' });
-    const db = await getDb();
-    await db.collection('users').updateOne({ _id: new ObjectId(req.params.userId) }, { $set: { coins: parseInt(coins), updatedAt: new Date() } });
-    return res.json({ success: true, message: 'Coins diperbarui' });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ─── INIT ADMIN — otomatis terkunci setelah admin pertama ada ────────────────
-app.post('/api/admin/init', rateLimit(3, 60000), async (req, res) => {
-  try {
-    const { username, password, fullName, initSecret } = req.body;
-
-    // Cek secret dulu
-    if (!initSecret || initSecret !== INIT_SECRET)
-      return res.status(403).json({ success: false, message: 'Init secret salah' });
-
-    const db = await getDb();
-
-    // Kalau sudah ada admin manapun → endpoint ini DIKUNCI otomatis
-    const anyAdmin = await db.collection('admins').findOne({});
-    if (anyAdmin)
-      return res.status(403).json({ success: false, message: 'Endpoint ini sudah dinonaktifkan karena admin sudah ada. Hubungi superadmin.' });
-
-    if (!username || !password)
-      return res.status(400).json({ success: false, message: 'Username dan password wajib diisi' });
-    if (password.length < 8)
-      return res.status(400).json({ success: false, message: 'Password admin minimal 8 karakter' });
-
-    const hashed = await bcrypt.hash(password, 12); // bcrypt rounds lebih tinggi untuk admin
-    await db.collection('admins').insertOne({
-      username: username.toLowerCase(),
-      fullName: fullName || 'Admin lapakID',
-      password: hashed,
-      role: 'admin',
-      totalIdDitambah: 0,
-      createdAt: new Date()
-    });
-    return res.status(201).json({ success: true, message: 'Admin berhasil dibuat! Endpoint ini sekarang otomatis terkunci.' });
-  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ─── HEALTH ───────────────────────────────────────────────────────────────────
-app.get('/api/health', async (req, res) => {
-  try {
-    await getDb();
-    res.json({ success: true, message: 'lapakID API OK', db: 'connected', time: new Date() });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'DB error: ' + err.message });
-  }
-});
-
-app.use('/api/*', (req, res) => res.status(404).json({ success: false, message: 'Endpoint tidak ditemukan' }));
-
-// ─── EXPORT untuk Vercel Serverless ──────────────────────────────────────────
-module.exports = app;
+const formatRp   = n => 'Rp' + Number(n || 0).toLocaleString('id-ID');
+const formatDate = d => new Date(d).toLocaleString('id-ID');
