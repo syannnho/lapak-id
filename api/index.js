@@ -1,4 +1,4 @@
-// api/index.js — lapakID Backend (semua endpoint dalam 1 file untuk Vercel)
+// api/index.js — lapakID Backend — semua endpoint 1 file (Vercel Serverless)
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const bcrypt = require('bcryptjs');
@@ -6,83 +6,80 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+
+// ─── CORS: izinkan semua origin (bisa dibatasi ke domain vercel kamu) ────────
+app.use(cors({ origin: '*', methods: ['GET','POST','PUT','DELETE','OPTIONS'] }));
+app.options('*', cors());
 app.use(express.json());
 
-// ─── CONFIG ────────────────────────────────────────────────────────────────
-const MONGO_URI = process.env.MONGODB_URI || 'mongodb+srv://n4taza_db:N44E8WEKlOJLZIHQ@cluster0.pdfnlfb.mongodb.net/?appName=Cluster0';
-const JWT_SECRET = process.env.JWT_SECRET || 'lapakid_secret_key_2026_change_in_prod';
-const JWT_EXPIRES = '7d';
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+const MONGO_URI    = process.env.MONGODB_URI   || 'mongodb+srv://n4taza_db:N44E8WEKlOJLZIHQ@cluster0.pdfnlfb.mongodb.net/?appName=Cluster0';
+const JWT_SECRET   = process.env.JWT_SECRET    || 'lapakid_secret_2026';
+const INIT_SECRET  = process.env.INIT_SECRET   || 'lapakid_init_2026';
+const JWT_EXPIRES  = '7d';
+const PRICE_MAP    = { low: 125000, medium: 450000, high: 850000, legend: 1350000 };
 
-// Harga tier
-const PRICE_MAP = { low: 125000, medium: 450000, high: 850000, legend: 1350000 };
-
-// ─── DATABASE ──────────────────────────────────────────────────────────────
-let cachedClient = null;
+// ─── DATABASE (cached connection untuk serverless) ───────────────────────────
+let _client = null;
 
 async function getDb() {
-  if (cachedClient && cachedClient.topology && cachedClient.topology.isConnected()) {
-    return cachedClient.db('lapakid');
-  }
-  const client = new MongoClient(MONGO_URI, {
-    serverSelectionTimeoutMS: 5000,
-    maxPoolSize: 10,
-  });
-  await client.connect();
-  console.log('✅ Connected to MongoDB');
-  cachedClient = client;
-  return client.db('lapakid');
-}
-
-// ─── MIDDLEWARE AUTH ────────────────────────────────────────────────────────
-function authMiddleware(req, res, next) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, message: 'Token tidak ditemukan' });
-  }
-  try {
-    const decoded = jwt.verify(auth.slice(7), JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (e) {
-    return res.status(401).json({ success: false, message: 'Token tidak valid atau kadaluarsa' });
-  }
-}
-
-function adminMiddleware(req, res, next) {
-  authMiddleware(req, res, () => {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Akses ditolak: bukan admin' });
+  if (_client) {
+    try {
+      // ping untuk cek koneksi masih hidup
+      await _client.db('admin').command({ ping: 1 });
+      return _client.db('lapakid');
+    } catch (_) {
+      _client = null;
     }
+  }
+  _client = new MongoClient(MONGO_URI, {
+    serverSelectionTimeoutMS: 8000,
+    connectTimeoutMS: 8000,
+  });
+  await _client.connect();
+  return _client.db('lapakid');
+}
+
+// ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
+function auth(req, res, next) {
+  const h = req.headers.authorization;
+  if (!h || !h.startsWith('Bearer '))
+    return res.status(401).json({ success: false, message: 'Token tidak ditemukan' });
+  try {
+    req.user = jwt.verify(h.slice(7), JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ success: false, message: 'Token expired, silakan login ulang' });
+  }
+}
+
+function adminOnly(req, res, next) {
+  auth(req, res, () => {
+    if (req.user.role !== 'admin')
+      return res.status(403).json({ success: false, message: 'Hanya admin yang bisa akses ini' });
     next();
   });
 }
 
-// ─── HELPER ────────────────────────────────────────────────────────────────
 function genId(prefix = 'TX') {
-  return prefix + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6).toUpperCase();
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,8).toUpperCase()}`;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTH ROUTES
-// ═══════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// AUTH
+// ════════════════════════════════════════════════════════════════════════════
 
 // POST /api/auth/register
 app.post('/api/auth/register', async (req, res) => {
-  console.log('📝 Register request:', req.body);
   try {
     const { username, fullName, emailPhone, password } = req.body;
-    if (!username || !fullName || !emailPhone || !password) {
+    if (!username || !fullName || !emailPhone || !password)
       return res.status(400).json({ success: false, message: 'Semua field wajib diisi' });
-    }
-    if (password.length < 6) {
+    if (password.length < 6)
       return res.status(400).json({ success: false, message: 'Password minimal 6 karakter' });
-    }
 
     const db = await getDb();
-    const users = db.collection('users');
-
-    const existing = await users.findOne({
+    const existing = await db.collection('users').findOne({
       $or: [{ username: username.toLowerCase() }, { emailPhone }]
     });
     if (existing) {
@@ -90,12 +87,12 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(409).json({ success: false, message: `${field} sudah terdaftar` });
     }
 
-    const hashedPass = await bcrypt.hash(password, 10);
-    const newUser = {
+    const hashed = await bcrypt.hash(password, 10);
+    const doc = {
       username: username.toLowerCase(),
       fullName,
       emailPhone,
-      password: hashedPass,
+      password: hashed,
       role: 'user',
       coins: 0,
       avatar: null,
@@ -104,101 +101,59 @@ app.post('/api/auth/register', async (req, res) => {
       createdAt: new Date(),
       updatedAt: new Date()
     };
-
-    const result = await users.insertOne(newUser);
-    const token = jwt.sign(
-      { id: result.insertedId.toString(), username: newUser.username, role: 'user' },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES }
-    );
+    const result = await db.collection('users').insertOne(doc);
+    const token = jwt.sign({ id: result.insertedId.toString(), username: doc.username, role: 'user' }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
 
     return res.status(201).json({
-      success: true,
-      message: 'Pendaftaran berhasil',
-      token,
-      user: {
-        id: result.insertedId,
-        username: newUser.username,
-        fullName: newUser.fullName,
-        emailPhone: newUser.emailPhone,
-        role: 'user',
-        coins: 0,
-        avatar: null
-      }
+      success: true, message: 'Pendaftaran berhasil', token,
+      user: { id: result.insertedId, username: doc.username, fullName, emailPhone, role: 'user', coins: 0 }
     });
   } catch (err) {
-    console.error('Register error:', err);
+    console.error('register:', err);
     return res.status(500).json({ success: false, message: 'Server error: ' + err.message });
   }
 });
 
 // POST /api/auth/login
 app.post('/api/auth/login', async (req, res) => {
-  console.log('🔐 Login request:', req.body.username);
   try {
     const { username, password } = req.body;
-    if (!username || !password) {
+    if (!username || !password)
       return res.status(400).json({ success: false, message: 'Username dan password wajib diisi' });
-    }
 
     const db = await getDb();
-    const users = db.collection('users');
-    const admins = db.collection('admins');
-
-    let user = await users.findOne({ username: username.toLowerCase() });
-    let isAdmin = false;
+    let user = await db.collection('users').findOne({ username: username.toLowerCase() });
+    let role = user?.role || 'user';
 
     if (!user) {
-      user = await admins.findOne({ username: username.toLowerCase() });
-      if (user) isAdmin = true;
+      user = await db.collection('admins').findOne({ username: username.toLowerCase() });
+      if (user) role = 'admin';
     }
 
-    if (!user) {
+    if (!user)
       return res.status(401).json({ success: false, message: 'Username atau password salah' });
-    }
 
-    const passMatch = await bcrypt.compare(password, user.password);
-    if (!passMatch) {
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok)
       return res.status(401).json({ success: false, message: 'Username atau password salah' });
-    }
 
-    const role = isAdmin ? 'admin' : (user.role || 'user');
-    const token = jwt.sign(
-      { id: user._id.toString(), username: user.username, role },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES }
-    );
-
+    const token = jwt.sign({ id: user._id.toString(), username: user.username, role }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
     return res.json({
-      success: true,
-      message: 'Login berhasil',
-      token,
-      user: {
-        id: user._id,
-        username: user.username,
-        fullName: user.fullName,
-        emailPhone: user.emailPhone,
-        role,
-        coins: user.coins || 0,
-        avatar: user.avatar || null,
-        totalTransaksi: user.totalTransaksi || { success: 0, pending: 0, gagal: 0 }
-      }
+      success: true, message: 'Login berhasil', token,
+      user: { id: user._id, username: user.username, fullName: user.fullName, emailPhone: user.emailPhone, role, coins: user.coins || 0, avatar: user.avatar || null, totalTransaksi: user.totalTransaksi || {} }
     });
   } catch (err) {
-    console.error('Login error:', err);
+    console.error('login:', err);
     return res.status(500).json({ success: false, message: 'Server error: ' + err.message });
   }
 });
 
 // GET /api/auth/me
-app.get('/api/auth/me', authMiddleware, async (req, res) => {
+app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const db = await getDb();
-    const collection = req.user.role === 'admin' ? db.collection('admins') : db.collection('users');
-    const user = await collection.findOne(
-      { _id: new ObjectId(req.user.id) },
-      { projection: { password: 0 } }
-    );
+    const col = req.user.role === 'admin' ? 'admins' : 'users';
+    const user = await db.collection(col).findOne({ _id: new ObjectId(req.user.id) }, { projection: { password: 0 } });
     if (!user) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
     return res.json({ success: true, user: { ...user, role: req.user.role } });
   } catch (err) {
@@ -206,762 +161,423 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// USER ROUTES
-// ═══════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// USER
+// ════════════════════════════════════════════════════════════════════════════
 
-// GET /api/user/profile
-app.get('/api/user/profile', authMiddleware, async (req, res) => {
+app.get('/api/user/profile', auth, async (req, res) => {
   try {
     const db = await getDb();
-    const user = await db.collection('users').findOne(
-      { _id: new ObjectId(req.user.id) },
-      { projection: { password: 0 } }
-    );
+    const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) }, { projection: { password: 0 } });
     if (!user) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
     return res.json({ success: true, user });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// PUT /api/user/profile
-app.put('/api/user/profile', authMiddleware, async (req, res) => {
+app.put('/api/user/profile', auth, async (req, res) => {
   try {
     const { fullName, emailPhone, avatar } = req.body;
     const db = await getDb();
-    const updateFields = { updatedAt: new Date() };
-    if (fullName) updateFields.fullName = fullName;
-    if (emailPhone) updateFields.emailPhone = emailPhone;
-    if (avatar !== undefined) updateFields.avatar = avatar;
-
-    await db.collection('users').updateOne(
-      { _id: new ObjectId(req.user.id) },
-      { $set: updateFields }
-    );
-    return res.json({ success: true, message: 'Profil berhasil diperbarui' });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+    const upd = { updatedAt: new Date() };
+    if (fullName) upd.fullName = fullName;
+    if (emailPhone) upd.emailPhone = emailPhone;
+    if (avatar !== undefined) upd.avatar = avatar;
+    await db.collection('users').updateOne({ _id: new ObjectId(req.user.id) }, { $set: upd });
+    return res.json({ success: true, message: 'Profil diperbarui' });
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// GET /api/user/cart
-app.get('/api/user/cart', authMiddleware, async (req, res) => {
+// ─── CART ─────────────────────────────────────────────────────────────────────
+app.get('/api/user/cart', auth, async (req, res) => {
   try {
     const db = await getDb();
-    const user = await db.collection('users').findOne(
-      { _id: new ObjectId(req.user.id) },
-      { projection: { cart: 1 } }
-    );
+    const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) }, { projection: { cart: 1 } });
     return res.json({ success: true, cart: user?.cart || [] });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// POST /api/user/cart
-app.post('/api/user/cart', authMiddleware, async (req, res) => {
+app.post('/api/user/cart', auth, async (req, res) => {
   try {
     const { idItem } = req.body;
     if (!idItem) return res.status(400).json({ success: false, message: 'idItem wajib diisi' });
-
     const db = await getDb();
     const idDoc = await db.collection('ids').findOne({ _id: new ObjectId(idItem), status: 'available' });
     if (!idDoc) return res.status(404).json({ success: false, message: 'ID tidak tersedia' });
-
     const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
-    if (user.cart && user.cart.some(c => c.idItem === idItem)) {
+    if (user?.cart?.some(c => c.idItem === idItem))
       return res.status(409).json({ success: false, message: 'ID sudah ada di keranjang' });
-    }
-
     await db.collection('users').updateOne(
       { _id: new ObjectId(req.user.id) },
-      {
-        $push: {
-          cart: {
-            idItem,
-            gameId: idDoc.gameId,
-            tier: idDoc.tier,
-            price: idDoc.price,
-            addedAt: new Date()
-          }
-        },
-        $set: { updatedAt: new Date() }
-      }
+      { $push: { cart: { idItem, gameId: idDoc.gameId, tier: idDoc.tier, price: idDoc.price, addedAt: new Date() } }, $set: { updatedAt: new Date() } }
     );
-    return res.json({ success: true, message: 'ID ditambahkan ke keranjang' });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+    return res.json({ success: true, message: 'Ditambahkan ke keranjang' });
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// DELETE /api/user/cart/:idItem
-app.delete('/api/user/cart/:idItem', authMiddleware, async (req, res) => {
-  try {
-    const { idItem } = req.params;
-    const db = await getDb();
-    await db.collection('users').updateOne(
-      { _id: new ObjectId(req.user.id) },
-      { $pull: { cart: { idItem } }, $set: { updatedAt: new Date() } }
-    );
-    return res.json({ success: true, message: 'Item dihapus dari keranjang' });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-// DELETE /api/user/cart
-app.delete('/api/user/cart', authMiddleware, async (req, res) => {
+app.delete('/api/user/cart/:idItem', auth, async (req, res) => {
   try {
     const db = await getDb();
     await db.collection('users').updateOne(
       { _id: new ObjectId(req.user.id) },
-      { $set: { cart: [], updatedAt: new Date() } }
+      { $pull: { cart: { idItem: req.params.idItem } }, $set: { updatedAt: new Date() } }
     );
+    return res.json({ success: true, message: 'Item dihapus' });
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
+});
+
+app.delete('/api/user/cart', auth, async (req, res) => {
+  try {
+    const db = await getDb();
+    await db.collection('users').updateOne({ _id: new ObjectId(req.user.id) }, { $set: { cart: [], updatedAt: new Date() } });
     return res.json({ success: true, message: 'Keranjang dikosongkan' });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ID ROUTES
-// ═══════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// IDS (public)
+// ════════════════════════════════════════════════════════════════════════════
 
-// GET /api/ids
 app.get('/api/ids', async (req, res) => {
   try {
-    const { tier, sort, page = 1, limit = 20 } = req.query;
+    const { tier, sort, page = 1, limit = 24 } = req.query;
     const db = await getDb();
     const filter = { status: 'available' };
     if (tier) filter.tier = tier;
-
-    const sortOpt = sort === 'price_asc' ? { price: 1 }
-      : sort === 'price_desc' ? { price: -1 }
-      : sort === 'newest' ? { addedAt: -1 }
-      : { addedAt: -1 };
-
+    const sortOpt = sort === 'price_asc' ? { price: 1 } : sort === 'price_desc' ? { price: -1 } : { addedAt: -1 };
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const total = await db.collection('ids').countDocuments(filter);
-    const ids = await db.collection('ids')
-      .find(filter, { projection: { uid: 0, password: 0 } })
-      .sort(sortOpt)
-      .skip(skip)
-      .limit(parseInt(limit))
-      .toArray();
-
+    const [total, ids] = await Promise.all([
+      db.collection('ids').countDocuments(filter),
+      db.collection('ids').find(filter, { projection: { uid: 0, password: 0 } }).sort(sortOpt).skip(skip).limit(parseInt(limit)).toArray()
+    ]);
     return res.json({ success: true, ids, total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// GET /api/ids/:id
 app.get('/api/ids/:id', async (req, res) => {
   try {
     const db = await getDb();
-    const doc = await db.collection('ids').findOne(
-      { _id: new ObjectId(req.params.id), status: 'available' },
-      { projection: { uid: 0, password: 0 } }
-    );
-    if (!doc) return res.status(404).json({ success: false, message: 'ID tidak ditemukan' });
+    const doc = await db.collection('ids').findOne({ _id: new ObjectId(req.params.id), status: 'available' }, { projection: { uid: 0, password: 0 } });
+    if (!doc) return res.status(404).json({ success: false, message: 'ID tidak ditemukan atau sudah terjual' });
     return res.json({ success: true, id: doc });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// PAYMENT / TRANSAKSI ROUTES
-// ═══════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// PAYMENT
+// ════════════════════════════════════════════════════════════════════════════
 
-// POST /api/payment/buy
-app.post('/api/payment/buy', authMiddleware, async (req, res) => {
+app.post('/api/payment/buy', auth, async (req, res) => {
   try {
     const { idItem } = req.body;
     if (!idItem) return res.status(400).json({ success: false, message: 'idItem wajib diisi' });
-
     const db = await getDb();
-    const users = db.collection('users');
-    const ids = db.collection('ids');
-    const sold = db.collection('sold');
-    const transaksi = db.collection('transaksi');
 
-    const user = await users.findOne({ _id: new ObjectId(req.user.id) });
+    const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
     if (!user) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
 
-    const idDoc = await ids.findOneAndUpdate(
+    // Atomic lock: set status sold sekaligus
+    const r = await db.collection('ids').findOneAndUpdate(
       { _id: new ObjectId(idItem), status: 'available' },
       { $set: { status: 'sold', soldAt: new Date(), soldTo: req.user.id } },
       { returnDocument: 'before' }
     );
-
-    if (!idDoc || !idDoc.value) {
+    const idDoc = r?.value || r; // driver v5 returns doc directly
+    if (!idDoc || !idDoc._id)
       return res.status(404).json({ success: false, message: 'ID tidak tersedia atau sudah terjual' });
+
+    if (user.coins < idDoc.price) {
+      // Rollback
+      await db.collection('ids').updateOne({ _id: idDoc._id }, { $set: { status: 'available', soldAt: null, soldTo: null } });
+      return res.status(402).json({ success: false, message: `Saldo tidak cukup. Saldo: Rp${user.coins.toLocaleString()}, Harga: Rp${idDoc.price.toLocaleString()}` });
     }
 
-    const id = idDoc.value;
-
-    if (user.coins < id.price) {
-      await ids.updateOne({ _id: id._id }, { $set: { status: 'available', soldAt: null, soldTo: null } });
-      return res.status(402).json({
-        success: false,
-        message: `Saldo tidak mencukupi. Saldo: Rp${user.coins.toLocaleString()}, Harga: Rp${id.price.toLocaleString()}`
-      });
-    }
-
-    const newCoins = user.coins - id.price;
-    await users.updateOne(
-      { _id: new ObjectId(req.user.id) },
-      {
-        $set: { coins: newCoins, updatedAt: new Date() },
-        $inc: { 'totalTransaksi.success': 1 },
-        $pull: { cart: { idItem: idItem } }
-      }
-    );
-
+    const newCoins = user.coins - idDoc.price;
     const txId = genId('TX');
-    await transaksi.insertOne({
-      txId,
-      userId: req.user.id,
-      username: user.username,
-      idDocId: id._id.toString(),
-      gameId: id.gameId,
-      tier: id.tier,
-      price: id.price,
-      status: 'success',
-      createdAt: new Date()
-    });
 
-    await sold.insertOne({
-      txId,
-      userId: req.user.id,
-      username: user.username,
-      gameId: id.gameId,
-      uid: id.uid,
-      password: id.password,
-      tier: id.tier,
-      price: id.price,
-      note: id.note || '',
-      soldAt: new Date()
-    });
+    await Promise.all([
+      db.collection('users').updateOne(
+        { _id: new ObjectId(req.user.id) },
+        { $set: { coins: newCoins, updatedAt: new Date() }, $inc: { 'totalTransaksi.success': 1 }, $pull: { cart: { idItem } } }
+      ),
+      db.collection('transaksi').insertOne({ txId, userId: req.user.id, username: user.username, idDocId: idDoc._id.toString(), gameId: idDoc.gameId, tier: idDoc.tier, price: idDoc.price, status: 'success', createdAt: new Date() }),
+      db.collection('sold').insertOne({ txId, userId: req.user.id, username: user.username, gameId: idDoc.gameId, uid: idDoc.uid, password: idDoc.password, tier: idDoc.tier, price: idDoc.price, note: idDoc.note || '', soldAt: new Date() })
+    ]);
 
-    return res.json({
-      success: true,
-      message: 'Pembelian berhasil!',
-      transaction: {
-        txId,
-        gameId: id.gameId,
-        uid: id.uid,
-        password: id.password,
-        tier: id.tier,
-        price: id.price,
-        newCoins
-      }
-    });
+    return res.json({ success: true, message: 'Pembelian berhasil!', transaction: { txId, gameId: idDoc.gameId, uid: idDoc.uid, password: idDoc.password, tier: idDoc.tier, price: idDoc.price, newCoins } });
   } catch (err) {
-    console.error('Buy error:', err);
+    console.error('buy:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// POST /api/payment/buy-cart
-app.post('/api/payment/buy-cart', authMiddleware, async (req, res) => {
+app.post('/api/payment/buy-cart', auth, async (req, res) => {
   try {
     const db = await getDb();
-    const users = db.collection('users');
-    const ids = db.collection('ids');
-    const sold = db.collection('sold');
-    const transaksi = db.collection('transaksi');
+    const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
+    if (!user?.cart?.length) return res.status(400).json({ success: false, message: 'Keranjang kosong' });
 
-    const user = await users.findOne({ _id: new ObjectId(req.user.id) });
-    if (!user || !user.cart || user.cart.length === 0) {
-      return res.status(400).json({ success: false, message: 'Keranjang kosong' });
+    const locked = [], failed = [];
+    for (const item of user.cart) {
+      const r = await db.collection('ids').findOneAndUpdate(
+        { _id: new ObjectId(item.idItem), status: 'available' },
+        { $set: { status: 'sold', soldAt: new Date(), soldTo: req.user.id } },
+        { returnDocument: 'before' }
+      );
+      const doc = r?.value || r;
+      if (doc?._id) locked.push(doc); else failed.push(item.idItem);
+    }
+    if (!locked.length) return res.status(404).json({ success: false, message: 'Semua ID di keranjang tidak tersedia' });
+
+    const total = locked.reduce((s, d) => s + d.price, 0);
+    if (user.coins < total) {
+      for (const d of locked) await db.collection('ids').updateOne({ _id: d._id }, { $set: { status: 'available', soldAt: null, soldTo: null } });
+      return res.status(402).json({ success: false, message: `Saldo tidak cukup. Total: Rp${total.toLocaleString()}, Saldo: Rp${user.coins.toLocaleString()}` });
     }
 
-    const results = [];
-    let totalHarga = 0;
-    const failedItems = [];
-
-    for (const cartItem of user.cart) {
-      try {
-        const idDoc = await ids.findOneAndUpdate(
-          { _id: new ObjectId(cartItem.idItem), status: 'available' },
-          { $set: { status: 'sold', soldAt: new Date(), soldTo: req.user.id } },
-          { returnDocument: 'before' }
-        );
-        if (idDoc && idDoc.value) {
-          totalHarga += idDoc.value.price;
-          results.push({ cartItem, idDoc: idDoc.value });
-        } else {
-          failedItems.push(cartItem.idItem);
-        }
-      } catch (e) {
-        failedItems.push(cartItem.idItem);
-      }
-    }
-
-    if (results.length === 0) {
-      return res.status(404).json({ success: false, message: 'Semua ID di keranjang tidak tersedia' });
-    }
-
-    if (user.coins < totalHarga) {
-      for (const r of results) {
-        await ids.updateOne({ _id: r.idDoc._id }, { $set: { status: 'available', soldAt: null, soldTo: null } });
-      }
-      return res.status(402).json({
-        success: false,
-        message: `Saldo tidak mencukupi. Total: Rp${totalHarga.toLocaleString()}, Saldo: Rp${user.coins.toLocaleString()}`
-      });
-    }
-
-    const newCoins = user.coins - totalHarga;
     const purchases = [];
-
-    for (const r of results) {
+    for (const d of locked) {
       const txId = genId('TX');
-      await transaksi.insertOne({
-        txId,
-        userId: req.user.id,
-        username: user.username,
-        idDocId: r.idDoc._id.toString(),
-        gameId: r.idDoc.gameId,
-        tier: r.idDoc.tier,
-        price: r.idDoc.price,
-        status: 'success',
-        createdAt: new Date()
-      });
-      await sold.insertOne({
-        txId,
-        userId: req.user.id,
-        username: user.username,
-        gameId: r.idDoc.gameId,
-        uid: r.idDoc.uid,
-        password: r.idDoc.password,
-        tier: r.idDoc.tier,
-        price: r.idDoc.price,
-        note: r.idDoc.note || '',
-        soldAt: new Date()
-      });
-      purchases.push({
-        txId,
-        gameId: r.idDoc.gameId,
-        uid: r.idDoc.uid,
-        password: r.idDoc.password,
-        tier: r.idDoc.tier,
-        price: r.idDoc.price
-      });
+      await Promise.all([
+        db.collection('transaksi').insertOne({ txId, userId: req.user.id, username: user.username, idDocId: d._id.toString(), gameId: d.gameId, tier: d.tier, price: d.price, status: 'success', createdAt: new Date() }),
+        db.collection('sold').insertOne({ txId, userId: req.user.id, username: user.username, gameId: d.gameId, uid: d.uid, password: d.password, tier: d.tier, price: d.price, note: d.note || '', soldAt: new Date() })
+      ]);
+      purchases.push({ txId, gameId: d.gameId, uid: d.uid, password: d.password, tier: d.tier, price: d.price });
     }
 
-    await users.updateOne(
+    const newCoins = user.coins - total;
+    await db.collection('users').updateOne(
       { _id: new ObjectId(req.user.id) },
-      {
-        $set: { coins: newCoins, cart: [], updatedAt: new Date() },
-        $inc: { 'totalTransaksi.success': results.length }
-      }
+      { $set: { coins: newCoins, cart: [], updatedAt: new Date() }, $inc: { 'totalTransaksi.success': locked.length } }
     );
 
-    return res.json({
-      success: true,
-      message: `${results.length} ID berhasil dibeli`,
-      purchases,
-      newCoins,
-      failedItems: failedItems.length > 0 ? failedItems : undefined
-    });
+    return res.json({ success: true, message: `${locked.length} ID berhasil dibeli`, purchases, newCoins, failedItems: failed.length ? failed : undefined });
   } catch (err) {
-    console.error('Buy cart error:', err);
+    console.error('buy-cart:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// GET /api/transaksi
-app.get('/api/transaksi', authMiddleware, async (req, res) => {
+// ════════════════════════════════════════════════════════════════════════════
+// TRANSAKSI
+// ════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/transaksi', auth, async (req, res) => {
   try {
     const { page = 1, limit = 20, status } = req.query;
     const db = await getDb();
     const filter = { userId: req.user.id };
     if (status) filter.status = status;
-
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const total = await db.collection('transaksi').countDocuments(filter);
-    const txList = await db.collection('transaksi')
-      .find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .toArray();
-
-    return res.json({ success: true, transaksi: txList, total, page: parseInt(page) });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+    const [total, transaksi] = await Promise.all([
+      db.collection('transaksi').countDocuments(filter),
+      db.collection('transaksi').find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
+    ]);
+    return res.json({ success: true, transaksi, total, page: parseInt(page) });
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// GET /api/transaksi/purchases
-app.get('/api/transaksi/purchases', authMiddleware, async (req, res) => {
+app.get('/api/transaksi/purchases', auth, async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const db = await getDb();
-    const filter = { userId: req.user.id };
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const total = await db.collection('sold').countDocuments(filter);
-    const purchases = await db.collection('sold')
-      .find(filter)
-      .sort({ soldAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .toArray();
-
+    const [total, purchases] = await Promise.all([
+      db.collection('sold').countDocuments({ userId: req.user.id }),
+      db.collection('sold').find({ userId: req.user.id }).sort({ soldAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
+    ]);
     return res.json({ success: true, purchases, total });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TOPUP ROUTES
-// ═══════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// TOPUP
+// ════════════════════════════════════════════════════════════════════════════
 
-// POST /api/topup/request
-app.post('/api/topup/request', authMiddleware, async (req, res) => {
+app.post('/api/topup/request', auth, async (req, res) => {
   try {
     const { packageId, coins, amount } = req.body;
     if (!coins || !amount) return res.status(400).json({ success: false, message: 'Data topup tidak lengkap' });
-
     const db = await getDb();
     const topupId = genId('TOP');
-    await db.collection('topup').insertOne({
-      topupId,
-      userId: req.user.id,
-      username: req.user.username,
-      packageId: packageId || null,
-      coins: parseInt(coins),
-      amount: parseInt(amount),
-      status: 'pending',
-      createdAt: new Date()
-    });
-
-    return res.json({ success: true, message: 'Request topup berhasil dikirim. Menunggu konfirmasi admin.', topupId });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+    await db.collection('topup').insertOne({ topupId, userId: req.user.id, username: req.user.username, packageId: packageId || null, coins: parseInt(coins), amount: parseInt(amount), status: 'pending', createdAt: new Date() });
+    return res.json({ success: true, message: 'Request topup dikirim. Menunggu konfirmasi admin.', topupId });
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// GET /api/topup/history
-app.get('/api/topup/history', authMiddleware, async (req, res) => {
+app.get('/api/topup/history', auth, async (req, res) => {
   try {
     const db = await getDb();
-    const history = await db.collection('topup')
-      .find({ userId: req.user.id })
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .toArray();
+    const history = await db.collection('topup').find({ userId: req.user.id }).sort({ createdAt: -1 }).limit(30).toArray();
     return res.json({ success: true, history });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ADMIN ROUTES
-// ═══════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// ADMIN
+// ════════════════════════════════════════════════════════════════════════════
 
-// GET /api/admin/stats
-app.get('/api/admin/stats', adminMiddleware, async (req, res) => {
+app.get('/api/admin/stats', adminOnly, async (req, res) => {
   try {
     const db = await getDb();
-    const [totalId, totalSold, totalUsers, pendingTopup, recentTx] = await Promise.all([
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const [totalId, totalSold, totalUsers, pendingTopup, recentTx, revAll, revToday] = await Promise.all([
       db.collection('ids').countDocuments({ status: 'available' }),
       db.collection('sold').countDocuments(),
       db.collection('users').countDocuments(),
       db.collection('topup').countDocuments({ status: 'pending' }),
-      db.collection('transaksi').find().sort({ createdAt: -1 }).limit(5).toArray()
+      db.collection('transaksi').find().sort({ createdAt: -1 }).limit(5).toArray(),
+      db.collection('transaksi').aggregate([{ $match: { status: 'success' } }, { $group: { _id: null, t: { $sum: '$price' } } }]).toArray(),
+      db.collection('transaksi').aggregate([{ $match: { status: 'success', createdAt: { $gte: todayStart } } }, { $group: { _id: null, t: { $sum: '$price' } } }]).toArray()
     ]);
-
-    const pendapatanAgg = await db.collection('transaksi').aggregate([
-      { $match: { status: 'success' } },
-      { $group: { _id: null, total: { $sum: '$price' } } }
-    ]).toArray();
-
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const pendapatanHariIniAgg = await db.collection('transaksi').aggregate([
-      { $match: { status: 'success', createdAt: { $gte: todayStart } } },
-      { $group: { _id: null, total: { $sum: '$price' } } }
-    ]).toArray();
-
-    return res.json({
-      success: true,
-      stats: {
-        totalId,
-        totalSold,
-        totalUsers,
-        pendingTopup,
-        pendapatan: pendapatanAgg[0]?.total || 0,
-        pendapatanHariIni: pendapatanHariIniAgg[0]?.total || 0
-      },
-      recentTx
-    });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+    return res.json({ success: true, stats: { totalId, totalSold, totalUsers, pendingTopup, pendapatan: revAll[0]?.t || 0, pendapatanHariIni: revToday[0]?.t || 0 }, recentTx });
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// GET /api/admin/users
-app.get('/api/admin/users', adminMiddleware, async (req, res) => {
+app.get('/api/admin/users', adminOnly, async (req, res) => {
   try {
-    const { page = 1, limit = 20, search } = req.query;
+    const { page = 1, limit = 25, search } = req.query;
     const db = await getDb();
-    const filter = {};
-    if (search) filter.$or = [
-      { username: { $regex: search, $options: 'i' } },
-      { fullName: { $regex: search, $options: 'i' } },
-      { emailPhone: { $regex: search, $options: 'i' } }
-    ];
-
+    const filter = search ? { $or: [{ username: { $regex: search, $options: 'i' } }, { fullName: { $regex: search, $options: 'i' } }, { emailPhone: { $regex: search, $options: 'i' } }] } : {};
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const total = await db.collection('users').countDocuments(filter);
-    const users = await db.collection('users')
-      .find(filter, { projection: { password: 0 } })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .toArray();
-
+    const [total, users] = await Promise.all([
+      db.collection('users').countDocuments(filter),
+      db.collection('users').find(filter, { projection: { password: 0 } }).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
+    ]);
     return res.json({ success: true, users, total, page: parseInt(page) });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// PUT /api/admin/users/:userId/coins
-app.put('/api/admin/users/:userId/coins', adminMiddleware, async (req, res) => {
-  try {
-    const { coins } = req.body;
-    if (coins === undefined || isNaN(coins)) {
-      return res.status(400).json({ success: false, message: 'Jumlah coins tidak valid' });
-    }
-    const db = await getDb();
-    await db.collection('users').updateOne(
-      { _id: new ObjectId(req.params.userId) },
-      { $set: { coins: parseInt(coins), updatedAt: new Date() } }
-    );
-    return res.json({ success: true, message: 'Coins user berhasil diubah' });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-// POST /api/admin/ids
-app.post('/api/admin/ids', adminMiddleware, async (req, res) => {
+app.post('/api/admin/ids', adminOnly, async (req, res) => {
   try {
     const { gameId, uid, password, tier, note } = req.body;
-    if (!gameId || !uid || !password || !tier) {
-      return res.status(400).json({ success: false, message: 'gameId, uid, password, dan tier wajib diisi' });
-    }
-    const tierLow = tier.toLowerCase();
-    if (!PRICE_MAP[tierLow]) {
-      return res.status(400).json({ success: false, message: 'Tier tidak valid (low/medium/high/legend)' });
-    }
-
+    if (!gameId || !uid || !password || !tier)
+      return res.status(400).json({ success: false, message: 'gameId, uid, password, tier wajib diisi' });
+    const t = tier.toLowerCase();
+    if (!PRICE_MAP[t])
+      return res.status(400).json({ success: false, message: 'Tier tidak valid. Pilih: low/medium/high/legend' });
     const db = await getDb();
-    const existing = await db.collection('ids').findOne({ gameId });
-    if (existing) {
-      return res.status(409).json({ success: false, message: 'Game ID sudah ada' });
-    }
-
-    const result = await db.collection('ids').insertOne({
-      gameId,
-      uid,
-      password,
-      tier: tierLow,
-      price: PRICE_MAP[tierLow],
-      note: note || '',
-      status: 'available',
-      addedBy: req.user.id,
-      addedAt: new Date()
-    });
-
-    await db.collection('admins').updateOne(
-      { _id: new ObjectId(req.user.id) },
-      { $inc: { totalIdDitambah: 1 } }
-    );
-
-    return res.status(201).json({
-      success: true,
-      message: 'ID berhasil ditambahkan',
-      id: result.insertedId
-    });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+    const exists = await db.collection('ids').findOne({ gameId });
+    if (exists) return res.status(409).json({ success: false, message: 'Game ID sudah ada di database' });
+    const result = await db.collection('ids').insertOne({ gameId, uid, password, tier: t, price: PRICE_MAP[t], note: note || '', status: 'available', addedBy: req.user.id, addedAt: new Date() });
+    await db.collection('admins').updateOne({ _id: new ObjectId(req.user.id) }, { $inc: { totalIdDitambah: 1 } });
+    return res.status(201).json({ success: true, message: `ID ${gameId} berhasil ditambahkan`, id: result.insertedId });
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// GET /api/admin/ids
-app.get('/api/admin/ids', adminMiddleware, async (req, res) => {
+app.get('/api/admin/ids', adminOnly, async (req, res) => {
   try {
-    const { status, tier, page = 1, limit = 20 } = req.query;
+    const { status, tier, page = 1, limit = 25 } = req.query;
     const db = await getDb();
     const filter = {};
     if (status) filter.status = status;
     if (tier) filter.tier = tier;
-
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const total = await db.collection('ids').countDocuments(filter);
-    const ids = await db.collection('ids')
-      .find(filter)
-      .sort({ addedAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .toArray();
-
+    const [total, ids] = await Promise.all([
+      db.collection('ids').countDocuments(filter),
+      db.collection('ids').find(filter).sort({ addedAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
+    ]);
     return res.json({ success: true, ids, total, page: parseInt(page) });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// DELETE /api/admin/ids/:id
-app.delete('/api/admin/ids/:id', adminMiddleware, async (req, res) => {
+app.delete('/api/admin/ids/:id', adminOnly, async (req, res) => {
   try {
     const db = await getDb();
-    const result = await db.collection('ids').deleteOne({ _id: new ObjectId(req.params.id), status: 'available' });
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ success: false, message: 'ID tidak ditemukan atau sudah terjual' });
-    }
-    return res.json({ success: true, message: 'ID berhasil dihapus' });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+    const r = await db.collection('ids').deleteOne({ _id: new ObjectId(req.params.id), status: 'available' });
+    if (!r.deletedCount) return res.status(404).json({ success: false, message: 'ID tidak ditemukan atau sudah terjual' });
+    return res.json({ success: true, message: 'ID dihapus' });
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// GET /api/admin/transaksi
-app.get('/api/admin/transaksi', adminMiddleware, async (req, res) => {
+app.get('/api/admin/transaksi', adminOnly, async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, userId } = req.query;
+    const { page = 1, limit = 30, status, userId } = req.query;
     const db = await getDb();
     const filter = {};
     if (status) filter.status = status;
     if (userId) filter.userId = userId;
-
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const total = await db.collection('transaksi').countDocuments(filter);
-    const txList = await db.collection('transaksi')
-      .find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .toArray();
-
-    return res.json({ success: true, transaksi: txList, total, page: parseInt(page) });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+    const [total, transaksi] = await Promise.all([
+      db.collection('transaksi').countDocuments(filter),
+      db.collection('transaksi').find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
+    ]);
+    return res.json({ success: true, transaksi, total, page: parseInt(page) });
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// GET /api/admin/topup
-app.get('/api/admin/topup', adminMiddleware, async (req, res) => {
+app.get('/api/admin/topup', adminOnly, async (req, res) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
     const db = await getDb();
     const filter = status ? { status } : {};
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const total = await db.collection('topup').countDocuments(filter);
-    const topups = await db.collection('topup')
-      .find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .toArray();
-
+    const [total, topups] = await Promise.all([
+      db.collection('topup').countDocuments(filter),
+      db.collection('topup').find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
+    ]);
     return res.json({ success: true, topups, total });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// PUT /api/admin/topup/:topupId/approve
-app.put('/api/admin/topup/:topupId/approve', adminMiddleware, async (req, res) => {
+app.put('/api/admin/topup/:topupId/approve', adminOnly, async (req, res) => {
   try {
-    const { topupId } = req.params;
     const db = await getDb();
-
-    const topup = await db.collection('topup').findOne({ topupId, status: 'pending' });
-    if (!topup) return res.status(404).json({ success: false, message: 'Request topup tidak ditemukan' });
-
-    await db.collection('users').updateOne(
-      { _id: new ObjectId(topup.userId) },
-      { $inc: { coins: topup.coins }, $set: { updatedAt: new Date() } }
-    );
-
-    await db.collection('topup').updateOne(
-      { topupId },
-      { $set: { status: 'approved', approvedBy: req.user.id, approvedAt: new Date() } }
-    );
-
-    return res.json({ success: true, message: `Topup ${topupId} disetujui. +${topup.coins} coins ke ${topup.username}` });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+    const topup = await db.collection('topup').findOne({ topupId: req.params.topupId, status: 'pending' });
+    if (!topup) return res.status(404).json({ success: false, message: 'Request topup tidak ditemukan atau sudah diproses' });
+    await Promise.all([
+      db.collection('users').updateOne({ _id: new ObjectId(topup.userId) }, { $inc: { coins: topup.coins }, $set: { updatedAt: new Date() } }),
+      db.collection('topup').updateOne({ topupId: req.params.topupId }, { $set: { status: 'approved', approvedBy: req.user.id, approvedAt: new Date() } })
+    ]);
+    return res.json({ success: true, message: `Topup disetujui. +${topup.coins} coins ke @${topup.username}` });
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// PUT /api/admin/topup/:topupId/reject
-app.put('/api/admin/topup/:topupId/reject', adminMiddleware, async (req, res) => {
+app.put('/api/admin/topup/:topupId/reject', adminOnly, async (req, res) => {
   try {
-    const { topupId } = req.params;
-    const { reason } = req.body;
     const db = await getDb();
-
-    const topup = await db.collection('topup').findOne({ topupId, status: 'pending' });
-    if (!topup) return res.status(404).json({ success: false, message: 'Request topup tidak ditemukan' });
-
-    await db.collection('topup').updateOne(
-      { topupId },
-      { $set: { status: 'rejected', rejectedBy: req.user.id, rejectedAt: new Date(), reason: reason || '' } }
-    );
-
-    return res.json({ success: true, message: `Topup ${topupId} ditolak` });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
+    const topup = await db.collection('topup').findOne({ topupId: req.params.topupId, status: 'pending' });
+    if (!topup) return res.status(404).json({ success: false, message: 'Request tidak ditemukan atau sudah diproses' });
+    await db.collection('topup').updateOne({ topupId: req.params.topupId }, { $set: { status: 'rejected', rejectedBy: req.user.id, rejectedAt: new Date(), reason: req.body.reason || '' } });
+    return res.json({ success: true, message: 'Topup ditolak' });
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// POST /api/admin/init
+app.put('/api/admin/users/:userId/coins', adminOnly, async (req, res) => {
+  try {
+    const { coins } = req.body;
+    if (coins === undefined || isNaN(coins)) return res.status(400).json({ success: false, message: 'Jumlah coins tidak valid' });
+    const db = await getDb();
+    await db.collection('users').updateOne({ _id: new ObjectId(req.params.userId) }, { $set: { coins: parseInt(coins), updatedAt: new Date() } });
+    return res.json({ success: true, message: 'Coins diperbarui' });
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
+});
+
+// ─── INIT ADMIN (jalankan sekali) ─────────────────────────────────────────────
 app.post('/api/admin/init', async (req, res) => {
   try {
     const { username, password, fullName, initSecret } = req.body;
-    if (initSecret !== (process.env.INIT_SECRET || 'lapakid_init_2026')) {
-      return res.status(403).json({ success: false, message: 'Secret tidak valid' });
-    }
-
+    if (initSecret !== INIT_SECRET)
+      return res.status(403).json({ success: false, message: 'Init secret salah' });
     const db = await getDb();
-    const admins = db.collection('admins');
-    const existing = await admins.findOne({ username: username.toLowerCase() });
-    if (existing) return res.status(409).json({ success: false, message: 'Admin sudah ada' });
+    if (await db.collection('admins').findOne({ username: username.toLowerCase() }))
+      return res.status(409).json({ success: false, message: 'Admin sudah ada' });
+    const hashed = await bcrypt.hash(password, 10);
+    await db.collection('admins').insertOne({ username: username.toLowerCase(), fullName: fullName || 'Admin lapakID', password: hashed, role: 'admin', totalIdDitambah: 0, createdAt: new Date() });
+    return res.status(201).json({ success: true, message: 'Admin berhasil dibuat. Sekarang bisa login!' });
+  } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
+});
 
-    const hashedPass = await bcrypt.hash(password, 10);
-    await admins.insertOne({
-      username: username.toLowerCase(),
-      fullName: fullName || 'Admin lapakID',
-      password: hashedPass,
-      role: 'admin',
-      totalIdDitambah: 0,
-      createdAt: new Date()
-    });
-
-    return res.status(201).json({ success: true, message: 'Admin berhasil dibuat' });
+// ─── HEALTH ───────────────────────────────────────────────────────────────────
+app.get('/api/health', async (req, res) => {
+  try {
+    await getDb();
+    res.json({ success: true, message: 'lapakID API OK', db: 'connected', time: new Date() });
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: 'DB error: ' + err.message });
   }
 });
 
-// ─── HEALTH CHECK ─────────────────────────────────────────────────────────
-app.get('/api/health', (req, res) => {
-  res.json({ success: true, message: 'lapakID API running', timestamp: new Date() });
-});
+app.use('/api/*', (req, res) => res.status(404).json({ success: false, message: 'Endpoint tidak ditemukan' }));
 
-// ─── 404 ──────────────────────────────────────────────────────────────────
-app.use('/api/*', (req, res) => {
-  res.status(404).json({ success: false, message: 'Endpoint tidak ditemukan' });
-});
-
+// ─── EXPORT untuk Vercel Serverless ──────────────────────────────────────────
 module.exports = app;
