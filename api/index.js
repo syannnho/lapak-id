@@ -1,6 +1,6 @@
 // frontend/public/js/api.js
 // Ganti BACKEND_URL dengan URL Railway/Render kamu setelah deploy
-const BACKEND_URL = 'https://lapakid-backend.railway.app'; // ← GANTI INI
+const BACKEND_URL = 'backend-production-c1faa.up.railway.app'; // ← GANTI INI
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 const Auth = {
