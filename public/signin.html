@@ -2,113 +2,117 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <title>Masuk | lapakID</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#f9fafb;--bg2:#f2f4f7;--card:#fff;--border:#e4e7ec;--border2:#d0d5dd;--text:#101828;--muted:#667085;--purple:#465fff;--success:#12b76a;--danger:#f04438;--font:'Outfit',sans-serif;}
-body.dark-mode{--bg:#000;--bg2:#0a0a0a;--card:#111;--border:#222;--border2:#333;--text:#fff;--muted:#888;}
-body{background:var(--bg);color:var(--text);font-family:var(--font);transition:background .3s;min-height:100vh;display:flex;flex-direction:column;}
-.app-wrapper{display:flex;flex-direction:column;min-height:100vh;}
-nav{position:sticky;top:0;z-index:200;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 16px;height:60px;display:flex;align-items:center;justify-content:space-between}
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#f9fafb;--card:#fff;--border:#e4e7ec;--text:#101828;--muted:#667085;--purple:#465fff;--success:#12b76a;--danger:#f04438;--font:'Outfit',sans-serif}
+body.dark-mode{--bg:#000;--card:#111;--border:#222;--text:#fff;--muted:#888}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;display:flex;flex-direction:column;transition:background .3s}
+nav{height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
 body.dark-mode nav{background:rgba(0,0,0,.96)}
-.nav-logo{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:800;color:var(--text);text-decoration:none}
-.nav-logo-icon{width:28px;height:28px;border-radius:8px;overflow:hidden}
-.nav-logo-icon img{width:100%;height:100%;object-fit:cover}
-.darkmode-toggle{background:var(--bg2);border:1px solid var(--border);width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem}
-.main-content{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 20px;}
-.auth-container{max-width:420px;width:100%;}
-.auth-card{background:var(--card);border:1px solid var(--border);border-radius:28px;padding:32px 28px;box-shadow:0 8px 28px rgba(0,0,0,.04);}
-.auth-header{text-align:center;margin-bottom:28px;}
-.logo-wrapper{max-width:240px;width:80%;margin:0 auto 16px;}
-.logo-img{width:100%;height:auto;display:block;aspect-ratio:16/9;object-fit:contain;}
-.auth-header h1{font-size:1.8rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px;}
-.auth-header p{font-size:.8rem;color:var(--muted);}
-.form-group{margin-bottom:18px;}
-.form-group label{display:block;font-size:.7rem;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
-.form-group input{width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:12px 16px;font-size:.85rem;color:var(--text);font-family:var(--font);outline:none;transition:all .2s;}
-.form-group input:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(70,95,255,.1);}
-.form-group input::placeholder{color:var(--muted);font-size:.75rem;}
-.btn-submit{width:100%;background:var(--purple);color:#fff;border:none;border-radius:40px;padding:14px;font-size:.9rem;font-weight:700;cursor:pointer;transition:all .2s;margin-top:4px;}
-.btn-submit:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(70,95,255,.3);}
-.btn-submit:disabled{opacity:.6;cursor:not-allowed;transform:none;}
-.auth-footer{text-align:center;margin-top:20px;padding-top:18px;border-top:1px solid var(--border);font-size:.75rem;color:var(--muted);}
-.auth-footer a{color:var(--purple);text-decoration:none;font-weight:600;}
-.error-msg{background:rgba(240,68,56,.1);color:var(--danger);padding:10px 14px;border-radius:12px;font-size:.7rem;margin-bottom:16px;text-align:center;display:none;}
-.error-msg.show{display:block;}
-.success-msg{background:rgba(18,183,106,.1);color:var(--success);padding:10px 14px;border-radius:12px;font-size:.7rem;margin-bottom:16px;text-align:center;display:none;}
-.success-msg.show{display:block;}
-footer{border-top:1px solid var(--border);padding:16px;text-align:center;background:var(--card);color:var(--muted);font-size:.65rem;margin-top:auto}
+.nav-logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:.9rem;color:var(--text);text-decoration:none}
+.nav-logo img{width:28px;height:28px;border-radius:8px}
+.btn-dark{background:none;border:1px solid var(--border);width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:.9rem;color:var(--text)}
+.wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:32px 16px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:24px;padding:32px 28px;width:100%;max-width:420px;box-shadow:0 8px 28px rgba(0,0,0,.05)}
+.logo-img{display:block;width:200px;height:auto;margin:0 auto 20px;object-fit:contain}
+h1{font-size:1.7rem;font-weight:800;text-align:center;letter-spacing:-.4px}
+.sub{text-align:center;color:var(--muted);font-size:.78rem;margin-top:5px;margin-bottom:28px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.field input{width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:11px 14px;font-size:.85rem;font-family:var(--font);color:var(--text);outline:none;transition:border .2s}
+body.dark-mode .field input{background:#0a0a0a}
+.field input:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(70,95,255,.12)}
+.field input::placeholder{color:var(--muted);font-size:.75rem}
+.msg{border-radius:10px;padding:9px 14px;font-size:.72rem;font-weight:600;text-align:center;margin-bottom:14px;display:none}
+.msg.show{display:block}
+.err{background:rgba(240,68,56,.1);color:var(--danger)}
+.ok{background:rgba(18,183,106,.1);color:var(--success)}
+.btn-main{width:100%;background:var(--purple);color:#fff;border:none;border-radius:40px;padding:13px;font-size:.88rem;font-weight:700;font-family:var(--font);cursor:pointer;margin-top:4px;transition:all .2s}
+.btn-main:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 14px rgba(70,95,255,.3)}
+.btn-main:disabled{opacity:.6;cursor:not-allowed}
+.footer-link{text-align:center;margin-top:20px;padding-top:18px;border-top:1px solid var(--border);font-size:.74rem;color:var(--muted)}
+.footer-link a{color:var(--purple);text-decoration:none;font-weight:700}
 </style>
 </head>
 <body>
-<div class="app-wrapper">
 <nav>
-  <a href="/" class="nav-logo">
-    <div class="nav-logo-icon"><img src="https://files.catbox.moe/34dics.png" alt="lapakID"/></div>
-    lapakID
-  </a>
-  <button class="darkmode-toggle" id="darkModeToggle">🌙</button>
+  <a href="/" class="nav-logo"><img src="https://files.catbox.moe/34dics.png" alt=""/>lapakID</a>
+  <button class="btn-dark" id="darkModeToggle">🌙</button>
 </nav>
-<div class="main-content">
-  <div class="auth-container">
-    <div class="auth-card">
-      <div class="auth-header">
-        <div class="logo-wrapper"><img class="logo-img" id="logoImage" src="" alt="lapakID"/></div>
-        <h1>Masuk</h1>
-        <p>Selamat datang kembali!</p>
-      </div>
-      <div id="errorMsg" class="error-msg"></div>
-      <div id="successMsg" class="success-msg"></div>
-      <form id="signinForm">
-        <div class="form-group">
-          <label>Username</label>
-          <input type="text" id="loginUsername" placeholder="username_kamu" required autocomplete="username"/>
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password"/>
-        </div>
-        <button type="submit" class="btn-submit" id="submitBtn">Masuk →</button>
-      </form>
-      <div class="auth-footer">Belum punya akun? <a href="/signup.html">Daftar sekarang</a></div>
+<div class="wrap">
+  <div class="card">
+    <img id="logoImg" class="logo-img" src="https://files.catbox.moe/7ilxlz.png" alt="lapakID"/>
+    <h1>Masuk</h1>
+    <p class="sub">Selamat datang kembali 👋</p>
+    <div id="errMsg" class="msg err"></div>
+    <div id="okMsg"  class="msg ok"></div>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="username" placeholder="username_kamu" autocomplete="username"/>
     </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password"/>
+    </div>
+    <button class="btn-main" id="submitBtn">Masuk →</button>
+    <div class="footer-link">Belum punya akun? <a href="/signup.html">Daftar sekarang</a></div>
   </div>
-</div>
-<footer>© 2026 lapakID</footer>
 </div>
 <script src="/js/api.js"></script>
 <script>
-if (Auth.isLoggedIn()) window.location.href = Auth.isAdmin() ? '/admin/dashboard.html' : '/user/dashboard.html';
-function initLogo(){const img=document.getElementById('logoImage');const u=()=>img.src=document.body.classList.contains('dark-mode')?'https://files.catbox.moe/hjvf1v.png':'https://files.catbox.moe/7ilxlz.png';u();new MutationObserver(u).observe(document.body,{attributes:true,attributeFilter:['class']});}
-function initDarkMode(){const btn=document.getElementById('darkModeToggle');let dark=localStorage.getItem('darkMode')==='true';const a=d=>{document.body.classList.toggle('dark-mode',d);btn.textContent=d?'☀️':'🌙';localStorage.setItem('darkMode',d);};a(dark);btn.onclick=()=>{dark=!dark;a(dark);};}
-document.getElementById('signinForm').addEventListener('submit',async function(e){
-  e.preventDefault();
-  const username=document.getElementById('loginUsername').value.trim();
-  const password=document.getElementById('loginPassword').value;
-  const errEl=document.getElementById('errorMsg');
-  const sucEl=document.getElementById('successMsg');
-  const btn=document.getElementById('submitBtn');
-  errEl.classList.remove('show');sucEl.classList.remove('show');
-  if(!username||!password){errEl.textContent='❌ Username dan password harus diisi!';errEl.classList.add('show');return;}
-  btn.disabled=true;btn.textContent='Memproses...';
-  try{
-    const res=await AuthAPI.login({username,password});
-    if(res&&res.success){
-      Auth.setSession(res.token,res.user);
-      sucEl.textContent='✅ Login berhasil! Mengarahkan...';sucEl.classList.add('show');
-      setTimeout(()=>window.location.href=res.user.role==='admin'?'/admin/dashboard.html':'/user/dashboard.html',900);
-    }else{
-      errEl.textContent='❌ '+(res?.message||'Username atau password salah!');errEl.classList.add('show');
-      btn.disabled=false;btn.textContent='Masuk →';
-    }
-  }catch(err){
-    errEl.textContent='❌ Gagal terhubung ke server.';errEl.classList.add('show');
-    btn.disabled=false;btn.textContent='Masuk →';
+// Redirect kalau sudah login
+if (Auth.isLoggedIn()) {
+  location.href = Auth.isAdmin() ? '/admin/dashboard.html' : '/user/dashboard.html';
+}
+
+// Dark mode
+initDarkMode();
+const logo = document.getElementById('logoImg');
+const updateLogo = () => logo.src = document.body.classList.contains('dark-mode')
+  ? 'https://files.catbox.moe/hjvf1v.png'
+  : 'https://files.catbox.moe/7ilxlz.png';
+updateLogo();
+new MutationObserver(updateLogo).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+// Submit
+async function doLogin() {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  const errEl = document.getElementById('errMsg');
+  const okEl  = document.getElementById('okMsg');
+  const btn   = document.getElementById('submitBtn');
+
+  errEl.classList.remove('show'); okEl.classList.remove('show');
+
+  if (!username || !password) {
+    errEl.textContent = '❌ Username dan password harus diisi!';
+    errEl.classList.add('show'); return;
   }
-});
-initDarkMode();initLogo();
+
+  btn.disabled = true; btn.textContent = 'Memproses...';
+
+  const res = await AuthAPI.login({ username, password });
+
+  if (res && res.success) {
+    Auth.setSession(res.token, res.user);
+    okEl.textContent = '✅ Login berhasil! Mengarahkan...';
+    okEl.classList.add('show');
+    setTimeout(() => {
+      location.href = res.user.role === 'admin' ? '/admin/dashboard.html' : '/user/dashboard.html';
+    }, 800);
+  } else {
+    errEl.textContent = '❌ ' + (res?.message || 'Login gagal. Coba lagi.');
+    errEl.classList.add('show');
+    btn.disabled = false; btn.textContent = 'Masuk →';
+  }
+}
+
+document.getElementById('submitBtn').addEventListener('click', doLogin);
+document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('username').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('password').focus(); });
 </script>
 </body>
 </html>
