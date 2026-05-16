@@ -186,7 +186,7 @@ const user = Auth.getUser() || {};
 document.getElementById('navAvatar').textContent = (user.fullName||user.username||'A').charAt(0).toUpperCase();
 document.getElementById('navUsername').textContent = user.username || 'Admin';
 
-const PRICES = { low:125000, medium:450000, high:850000, legend:1350000 };
+const PRICES = { low:20000, medium:40000, high:60000, legend:120000 };
 let selectedTier = '';
 
 function selectTier(tier){
