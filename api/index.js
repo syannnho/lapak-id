@@ -4,20 +4,65 @@ const { MongoClient, ObjectId } = require('mongodb');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const crypto = require('crypto'); // built-in Node.js, tidak perlu install
 
 const app = express();
 
-// ─── CORS: izinkan semua origin (bisa dibatasi ke domain vercel kamu) ────────
+// ─── CORS ─────────────────────────────────────────────────────────────────────
 app.use(cors({ origin: '*', methods: ['GET','POST','PUT','DELETE','OPTIONS'] }));
 app.options('*', cors());
 app.use(express.json());
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
-const MONGO_URI    = process.env.MONGODB_URI   || 'mongodb+srv://n4taza_db:N44E8WEKlOJLZIHQ@cluster0.pdfnlfb.mongodb.net/?appName=Cluster0';
-const JWT_SECRET   = process.env.JWT_SECRET    || 'lapakid_secret_2026';
-const INIT_SECRET  = process.env.INIT_SECRET   || 'lapakid_init_2026';
+// ⚠️  JANGAN hardcode credential di sini — semua harus dari env variable Vercel
+const MONGO_URI    = process.env.MONGODB_URI;   // WAJIB diset di Vercel
+const JWT_SECRET   = process.env.JWT_SECRET;    // WAJIB diset di Vercel
+const INIT_SECRET  = process.env.INIT_SECRET  || 'lapakid_init_2026';
+const ENC_KEY      = process.env.ENC_KEY;       // 32-char hex key untuk enkripsi UID/password
 const JWT_EXPIRES  = '7d';
 const PRICE_MAP    = { low: 125000, medium: 450000, high: 850000, legend: 1350000 };
+
+// Validasi env variables wajib
+if (!MONGO_URI)  throw new Error('MONGODB_URI environment variable tidak diset!');
+if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable tidak diset!');
+
+// ─── ENKRIPSI UID & PASSWORD ID (AES-256-GCM) ────────────────────────────────
+// Digunakan untuk menyimpan credentials ID game secara aman di MongoDB
+// ENC_KEY harus 64 hex chars (32 bytes) — generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+function encrypt(text) {
+  if (!ENC_KEY || !text) return text; // fallback jika ENC_KEY belum diset
+  try {
+    const key = Buffer.from(ENC_KEY, 'hex');
+    const iv  = crypto.randomBytes(12); // 96-bit IV untuk GCM
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const encrypted = Buffer.concat([cipher.update(String(text), 'utf8'), cipher.final()]);
+    const tag = cipher.getAuthTag(); // authentication tag untuk verifikasi integritas
+    // Format: iv(24) + tag(32) + encrypted — semua hex
+    return iv.toString('hex') + tag.toString('hex') + encrypted.toString('hex');
+  } catch (e) {
+    console.error('Encrypt error:', e.message);
+    return text;
+  }
+}
+
+function decrypt(encText) {
+  if (!ENC_KEY || !encText) return encText;
+  // Kalau bukan format enkripsi (data lama plain text), return as-is
+  if (encText.length < 56) return encText;
+  try {
+    const key       = Buffer.from(ENC_KEY, 'hex');
+    const iv        = Buffer.from(encText.slice(0, 24), 'hex');
+    const tag       = Buffer.from(encText.slice(24, 56), 'hex');
+    const encrypted = Buffer.from(encText.slice(56), 'hex');
+    const decipher  = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    return decipher.update(encrypted) + decipher.final('utf8');
+  } catch (e) {
+    // Kalau gagal decrypt (mungkin data lama), return as-is
+    return encText;
+  }
+}
 
 // ─── DATABASE (cached connection untuk serverless) ───────────────────────────
 let _client = null;
@@ -300,10 +345,12 @@ app.post('/api/payment/buy', auth, async (req, res) => {
         { $set: { coins: newCoins, updatedAt: new Date() }, $inc: { 'totalTransaksi.success': 1 }, $pull: { cart: { idItem } } }
       ),
       db.collection('transaksi').insertOne({ txId, userId: req.user.id, username: user.username, idDocId: idDoc._id.toString(), gameId: idDoc.gameId, tier: idDoc.tier, price: idDoc.price, status: 'success', createdAt: new Date() }),
+      // Simpan terenkripsi di collection sold juga
       db.collection('sold').insertOne({ txId, userId: req.user.id, username: user.username, gameId: idDoc.gameId, uid: idDoc.uid, password: idDoc.password, tier: idDoc.tier, price: idDoc.price, note: idDoc.note || '', soldAt: new Date() })
     ]);
 
-    return res.json({ success: true, message: 'Pembelian berhasil!', transaction: { txId, gameId: idDoc.gameId, uid: idDoc.uid, password: idDoc.password, tier: idDoc.tier, price: idDoc.price, newCoins } });
+    // Decrypt credentials sebelum dikirim ke pembeli
+    return res.json({ success: true, message: 'Pembelian berhasil!', transaction: { txId, gameId: idDoc.gameId, uid: decrypt(idDoc.uid), password: decrypt(idDoc.password), tier: idDoc.tier, price: idDoc.price, newCoins } });
   } catch (err) {
     console.error('buy:', err);
     return res.status(500).json({ success: false, message: err.message });
@@ -341,7 +388,7 @@ app.post('/api/payment/buy-cart', auth, async (req, res) => {
         db.collection('transaksi').insertOne({ txId, userId: req.user.id, username: user.username, idDocId: d._id.toString(), gameId: d.gameId, tier: d.tier, price: d.price, status: 'success', createdAt: new Date() }),
         db.collection('sold').insertOne({ txId, userId: req.user.id, username: user.username, gameId: d.gameId, uid: d.uid, password: d.password, tier: d.tier, price: d.price, note: d.note || '', soldAt: new Date() })
       ]);
-      purchases.push({ txId, gameId: d.gameId, uid: d.uid, password: d.password, tier: d.tier, price: d.price });
+      purchases.push({ txId, gameId: d.gameId, uid: decrypt(d.uid), password: decrypt(d.password), tier: d.tier, price: d.price });
     }
 
     const newCoins = user.coins - total;
@@ -385,7 +432,13 @@ app.get('/api/transaksi/purchases', auth, async (req, res) => {
       db.collection('sold').countDocuments({ userId: req.user.id }),
       db.collection('sold').find({ userId: req.user.id }).sort({ soldAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
     ]);
-    return res.json({ success: true, purchases, total });
+    // Decrypt credentials sebelum dikirim ke user
+    const decrypted = purchases.map(p => ({
+      ...p,
+      uid:      decrypt(p.uid),
+      password: decrypt(p.password)
+    }));
+    return res.json({ success: true, purchases: decrypted, total });
   } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
@@ -458,7 +511,19 @@ app.post('/api/admin/ids', adminOnly, async (req, res) => {
     const db = await getDb();
     const exists = await db.collection('ids').findOne({ gameId });
     if (exists) return res.status(409).json({ success: false, message: 'Game ID sudah ada di database' });
-    const result = await db.collection('ids').insertOne({ gameId, uid, password, tier: t, price: PRICE_MAP[t], note: note || '', status: 'available', addedBy: req.user.id, addedAt: new Date() });
+
+    // Enkripsi UID & password sebelum disimpan ke MongoDB
+    const result = await db.collection('ids').insertOne({
+      gameId,
+      uid: encrypt(uid),           // 🔐 tersimpan terenkripsi
+      password: encrypt(password), // 🔐 tersimpan terenkripsi
+      tier: t,
+      price: PRICE_MAP[t],
+      note: note || '',
+      status: 'available',
+      addedBy: req.user.id,
+      addedAt: new Date()
+    });
     await db.collection('admins').updateOne({ _id: new ObjectId(req.user.id) }, { $inc: { totalIdDitambah: 1 } });
     return res.status(201).json({ success: true, message: `ID ${gameId} berhasil ditambahkan`, id: result.insertedId });
   } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
@@ -476,7 +541,9 @@ app.get('/api/admin/ids', adminOnly, async (req, res) => {
       db.collection('ids').countDocuments(filter),
       db.collection('ids').find(filter).sort({ addedAt: -1 }).skip(skip).limit(parseInt(limit)).toArray()
     ]);
-    return res.json({ success: true, ids, total, page: parseInt(page) });
+    // Decrypt UID & password untuk tampilan admin
+    const result = ids.map(id => ({ ...id, uid: decrypt(id.uid), password: decrypt(id.password) }));
+    return res.json({ success: true, ids: result, total, page: parseInt(page) });
   } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
