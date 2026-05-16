@@ -4,27 +4,111 @@ const { MongoClient, ObjectId } = require('mongodb');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
-const crypto = require('crypto'); // built-in Node.js, tidak perlu install
+const crypto = require('crypto');
 
 const app = express();
 
-// ─── CORS ─────────────────────────────────────────────────────────────────────
-app.use(cors({ origin: '*', methods: ['GET','POST','PUT','DELETE','OPTIONS'] }));
+// ─── CORS — hanya izinkan domain sendiri ─────────────────────────────────────
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, cb) => {
+    // Izinkan jika: tidak ada origin (curl/server), atau domain ada di whitelist, atau belum diset
+    if (!origin || ALLOWED_ORIGINS.length === 0 || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    return cb(new Error('CORS: origin tidak diizinkan'));
+  },
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization'],
+  credentials: true
+}));
 app.options('*', cors());
-app.use(express.json());
+app.use(express.json({ limit: '10kb' })); // batasi body size maks 10KB
+
+// ─── SECURITY HEADERS ────────────────────────────────────────────────────────
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
+  // Hapus header yang bocorkan info server
+  res.removeHeader('X-Powered-By');
+  next();
+});
+
+// ─── RATE LIMITER (in-memory, tanpa package tambahan) ────────────────────────
+// Maks 60 request/menit per IP untuk endpoint biasa
+// Maks 10 request/menit per IP untuk endpoint sensitif (login, register)
+const _rateStore = new Map(); // { ip_endpoint: { count, resetAt } }
+
+function rateLimit(maxReq, windowMs = 60000) {
+  return (req, res, next) => {
+    const ip  = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+    const key = ip + '|' + req.path;
+    const now = Date.now();
+    const entry = _rateStore.get(key);
+
+    if (!entry || now > entry.resetAt) {
+      _rateStore.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    entry.count++;
+    if (entry.count > maxReq) {
+      const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+      res.setHeader('Retry-After', retryAfter);
+      return res.status(429).json({ success: false, message: `Terlalu banyak percobaan. Coba lagi dalam ${retryAfter} detik.` });
+    }
+    next();
+  };
+}
+
+// Bersihkan rate store setiap 5 menit biar tidak memory leak
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _rateStore) { if (now > v.resetAt) _rateStore.delete(k); }
+}, 5 * 60 * 1000);
+
+// ─── BRUTE FORCE TRACKER untuk login ─────────────────────────────────────────
+// Kunci IP selama 15 menit setelah 5x gagal login
+const _loginFails = new Map(); // { ip: { count, lockedUntil } }
+
+function checkBruteForce(req, res, next) {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
+  const entry = _loginFails.get(ip);
+  const now = Date.now();
+
+  if (entry?.lockedUntil && now < entry.lockedUntil) {
+    const wait = Math.ceil((entry.lockedUntil - now) / 1000 / 60);
+    return res.status(429).json({ success: false, message: `Akun terkunci karena terlalu banyak percobaan. Coba lagi dalam ${wait} menit.` });
+  }
+  next();
+}
+
+function recordLoginFail(req) {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
+  const entry = _loginFails.get(ip) || { count: 0, lockedUntil: null };
+  entry.count++;
+  if (entry.count >= 5) {
+    entry.lockedUntil = Date.now() + 15 * 60 * 1000; // kunci 15 menit
+    entry.count = 0;
+  }
+  _loginFails.set(ip, entry);
+}
+
+function clearLoginFail(req) {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
+  _loginFails.delete(ip);
+}
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
-// ⚠️  JANGAN hardcode credential di sini — semua harus dari env variable Vercel
-const MONGO_URI    = process.env.MONGODB_URI;   // WAJIB diset di Vercel
-const JWT_SECRET   = process.env.JWT_SECRET;    // WAJIB diset di Vercel
-const INIT_SECRET  = process.env.INIT_SECRET  || 'lapakid_init_2026';
-const ENC_KEY      = process.env.ENC_KEY;       // 32-char hex key untuk enkripsi UID/password
-const JWT_EXPIRES  = '7d';
-const PRICE_MAP    = { low: 125000, medium: 450000, high: 850000, legend: 1350000 };
+const MONGO_URI   = process.env.MONGODB_URI;
+const JWT_SECRET  = process.env.JWT_SECRET;
+const INIT_SECRET = process.env.INIT_SECRET || 'lapakid_init_2026';
+const ENC_KEY     = process.env.ENC_KEY;
+const JWT_EXPIRES = '7d';
+const PRICE_MAP   = { low: 125000, medium: 450000, high: 850000, legend: 1350000 };
 
-// Validasi env variables wajib
-if (!MONGO_URI)  throw new Error('MONGODB_URI environment variable tidak diset!');
-if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable tidak diset!');
+if (!MONGO_URI)  throw new Error('MONGODB_URI belum diset di environment variables!');
+if (!JWT_SECRET) throw new Error('JWT_SECRET belum diset di environment variables!');
 
 // ─── ENKRIPSI UID & PASSWORD ID (AES-256-GCM) ────────────────────────────────
 // Digunakan untuk menyimpan credentials ID game secara aman di MongoDB
@@ -114,14 +198,18 @@ function genId(prefix = 'TX') {
 // AUTH
 // ════════════════════════════════════════════════════════════════════════════
 
-// POST /api/auth/register
-app.post('/api/auth/register', async (req, res) => {
+// POST /api/auth/register — rate limit 5x/menit per IP
+app.post('/api/auth/register', rateLimit(5, 60000), async (req, res) => {
   try {
     const { username, fullName, emailPhone, password } = req.body;
     if (!username || !fullName || !emailPhone || !password)
       return res.status(400).json({ success: false, message: 'Semua field wajib diisi' });
     if (password.length < 6)
       return res.status(400).json({ success: false, message: 'Password minimal 6 karakter' });
+
+    // Validasi format username: hanya huruf, angka, underscore
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username))
+      return res.status(400).json({ success: false, message: 'Username hanya boleh huruf, angka, underscore (3-20 karakter)' });
 
     const db = await getDb();
     const existing = await db.collection('users').findOne({
@@ -159,8 +247,8 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// POST /api/auth/login
-app.post('/api/auth/login', async (req, res) => {
+// POST /api/auth/login — rate limit 10x/menit + brute force lock
+app.post('/api/auth/login', rateLimit(10, 60000), checkBruteForce, async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password)
@@ -175,13 +263,18 @@ app.post('/api/auth/login', async (req, res) => {
       if (user) role = 'admin';
     }
 
-    if (!user)
+    if (!user) {
+      recordLoginFail(req); // catat gagal login
       return res.status(401).json({ success: false, message: 'Username atau password salah' });
+    }
 
     const ok = await bcrypt.compare(password, user.password);
-    if (!ok)
+    if (!ok) {
+      recordLoginFail(req); // catat gagal login
       return res.status(401).json({ success: false, message: 'Username atau password salah' });
+    }
 
+    clearLoginFail(req); // reset counter kalau berhasil
     const token = jwt.sign({ id: user._id.toString(), username: user.username, role }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
     return res.json({
       success: true, message: 'Login berhasil', token,
@@ -619,18 +712,37 @@ app.put('/api/admin/users/:userId/coins', adminOnly, async (req, res) => {
   } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
-// ─── INIT ADMIN (jalankan sekali) ─────────────────────────────────────────────
-app.post('/api/admin/init', async (req, res) => {
+// ─── INIT ADMIN — otomatis terkunci setelah admin pertama ada ────────────────
+app.post('/api/admin/init', rateLimit(3, 60000), async (req, res) => {
   try {
     const { username, password, fullName, initSecret } = req.body;
-    if (initSecret !== INIT_SECRET)
+
+    // Cek secret dulu
+    if (!initSecret || initSecret !== INIT_SECRET)
       return res.status(403).json({ success: false, message: 'Init secret salah' });
+
     const db = await getDb();
-    if (await db.collection('admins').findOne({ username: username.toLowerCase() }))
-      return res.status(409).json({ success: false, message: 'Admin sudah ada' });
-    const hashed = await bcrypt.hash(password, 10);
-    await db.collection('admins').insertOne({ username: username.toLowerCase(), fullName: fullName || 'Admin lapakID', password: hashed, role: 'admin', totalIdDitambah: 0, createdAt: new Date() });
-    return res.status(201).json({ success: true, message: 'Admin berhasil dibuat. Sekarang bisa login!' });
+
+    // Kalau sudah ada admin manapun → endpoint ini DIKUNCI otomatis
+    const anyAdmin = await db.collection('admins').findOne({});
+    if (anyAdmin)
+      return res.status(403).json({ success: false, message: 'Endpoint ini sudah dinonaktifkan karena admin sudah ada. Hubungi superadmin.' });
+
+    if (!username || !password)
+      return res.status(400).json({ success: false, message: 'Username dan password wajib diisi' });
+    if (password.length < 8)
+      return res.status(400).json({ success: false, message: 'Password admin minimal 8 karakter' });
+
+    const hashed = await bcrypt.hash(password, 12); // bcrypt rounds lebih tinggi untuk admin
+    await db.collection('admins').insertOne({
+      username: username.toLowerCase(),
+      fullName: fullName || 'Admin lapakID',
+      password: hashed,
+      role: 'admin',
+      totalIdDitambah: 0,
+      createdAt: new Date()
+    });
+    return res.status(201).json({ success: true, message: 'Admin berhasil dibuat! Endpoint ini sekarang otomatis terkunci.' });
   } catch (err) { return res.status(500).json({ success: false, message: err.message }); }
 });
 
