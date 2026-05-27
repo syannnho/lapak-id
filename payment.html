@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>Beli ID — lapakID</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f9fafb;--bg2:#f2f4f7;--card:#fff;--border:#e4e7ec;--border2:#d0d5dd;
+  --text:#101828;--muted:#667085;--muted2:#475467;
+  --purple:#465fff;--purple2:#7c8eff;
+  --low:#6b7280;--medium:#3b82f6;--high:#f97316;--legend:#eab308;--sold:#ef4444;
+  --success:#12b76a;
+  --font:'Outfit',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+body.dark{--bg:#0d0d0d;--bg2:#151515;--card:#1a1a1a;--border:#252525;--border2:#2e2e2e;--text:#f5f5f5;--muted:#888;--muted2:#aaa}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;transition:background .3s,color .3s}
+
+nav{position:sticky;top:0;z-index:200;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(249,250,251,.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+@media(min-width:768px){nav{height:68px;padding:0 32px}}
+body.dark nav{background:rgba(13,13,13,.95)}
+.nav-logo{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:800;color:var(--text);text-decoration:none}
+.logo-mark{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--purple),var(--purple2));display:flex;align-items:center;justify-content:center}
+.logo-mark svg{width:14px;height:14px;stroke:#fff;fill:none}
+.nav-right{display:flex;align-items:center;gap:8px}
+.nav-back{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:99px;font-size:.7rem;font-weight:600;color:var(--muted2);text-decoration:none;background:var(--bg2);border:1px solid var(--border)}
+.nav-back svg{width:13px;height:13px;stroke:currentColor;fill:none}
+.theme-btn{background:var(--bg2);border:1px solid var(--border);width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.theme-btn svg{width:14px;height:14px;stroke:var(--muted2);fill:none}
+
+.page-wrap{max-width:520px;margin:0 auto;padding:24px 16px 80px}
+@media(min-width:768px){.page-wrap{padding:32px 24px 80px}}
+
+/* STEPPER */
+.stepper{display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:24px}
+.step{display:flex;align-items:center;gap:6px;font-size:.65rem;font-weight:700;color:var(--muted)}
+.step-num{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:800;color:var(--muted);flex-shrink:0;transition:.3s}
+.step.active .step-num{background:var(--purple);border-color:var(--purple);color:#fff}
+.step.active{color:var(--text)}
+.step.done .step-num{background:var(--success);border-color:var(--success);color:#fff}
+.step-line{flex:1;height:2px;background:var(--border);margin:0 8px;max-width:60px;transition:.3s}
+.step-line.done{background:var(--success)}
+
+/* ID BANNER */
+.id-banner{background:linear-gradient(135deg,rgba(70,95,255,.07),rgba(124,142,255,.03));border:1px solid rgba(70,95,255,.18);border-radius:16px;padding:16px 18px;display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.id-banner-icon{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--purple),var(--purple2));display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.id-banner-icon svg{width:19px;height:19px;stroke:#fff;fill:none}
+.id-banner-num{font-family:var(--mono);font-size:1.05rem;font-weight:700;color:var(--text);letter-spacing:.5px}
+.id-banner-meta{display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap}
+.tier-pill{font-size:.55rem;font-weight:700;padding:2px 9px;border-radius:99px;border:1px solid;text-transform:uppercase;letter-spacing:.4px}
+.tier-low{background:rgba(107,114,128,.1);color:var(--low);border-color:rgba(107,114,128,.25)}
+.tier-medium{background:rgba(59,130,246,.1);color:var(--medium);border-color:rgba(59,130,246,.25)}
+.tier-high{background:rgba(249,115,22,.1);color:var(--high);border-color:rgba(249,115,22,.25)}
+.tier-legend{background:rgba(234,179,8,.1);color:var(--legend);border-color:rgba(234,179,8,.25)}
+.id-price-tag{font-size:.72rem;font-weight:800;font-family:var(--mono);color:var(--purple)}
+
+/* FORM */
+.form-section{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:12px}
+.form-section h3{font-size:.8rem;font-weight:800;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:7px}
+.form-section h3 svg{width:14px;height:14px;stroke:var(--purple);fill:none}
+.field{margin-bottom:11px}
+.field:last-child{margin-bottom:0}
+.field label{display:block;font-size:.6rem;font-weight:700;color:var(--muted2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
+.field input{width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:9px;padding:9px 12px;color:var(--text);font-family:var(--font);font-size:.76rem;outline:none;transition:.15s}
+.field input:focus{border-color:var(--purple);background:var(--card);box-shadow:0 0 0 3px rgba(70,95,255,.1)}
+.field input::placeholder{color:var(--muted)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:460px){.field-row{grid-template-columns:1fr}}
+
+/* PROMO */
+.promo-row{display:flex;gap:8px;align-items:flex-end}
+.promo-row .field{flex:1;margin-bottom:0}
+.btn-promo{background:var(--purple);color:#fff;border:none;padding:9px 14px;border-radius:9px;font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap;font-family:var(--font);height:38px;flex-shrink:0;align-self:flex-end}
+.promo-msg{margin-top:8px;font-size:.64rem;padding:6px 10px;border-radius:8px;display:none}
+.promo-msg.ok{background:rgba(18,183,106,.08);color:var(--success);border:1px solid rgba(18,183,106,.2)}
+.promo-msg.err{background:rgba(239,68,68,.08);color:var(--sold);border:1px solid rgba(239,68,68,.2)}
+
+/* METODE PEMBAYARAN */
+.method-grid{display:grid;grid-template-columns:1fr;gap:8px}
+.method-opt{display:flex;align-items:center;gap:12px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:.15s}
+.method-opt:hover{border-color:var(--purple)}
+.method-opt.selected{border-color:var(--purple);background:rgba(70,95,255,.04)}
+.method-opt input[type=radio]{accent-color:var(--purple);width:16px;height:16px;flex-shrink:0}
+.method-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.7rem;flex-shrink:0}
+.method-qris .method-icon{background:#e60000;color:#fff}
+.method-info{flex:1}
+.method-name{font-size:.76rem;font-weight:700;color:var(--text)}
+.method-desc{font-size:.6rem;color:var(--muted);margin-top:2px}
+.method-fee{font-size:.6rem;font-weight:700;color:var(--success);margin-left:auto}
+
+/* SUMMARY */
+.summary-box{background:linear-gradient(135deg,rgba(70,95,255,.05),rgba(124,142,255,.02));border:1px solid rgba(70,95,255,.14);border-radius:14px;padding:16px;margin-bottom:12px}
+.sum-row{display:flex;justify-content:space-between;font-size:.72rem;padding:5px 0;border-bottom:1px solid rgba(70,95,255,.07)}
+.sum-row:last-child{border:none;padding-top:10px}
+.sum-row:last-child .sum-label{font-weight:800;font-size:.76rem;color:var(--text)}
+.sum-row:last-child .sum-val{font-weight:900;font-size:.9rem;color:var(--purple);font-family:var(--mono)}
+.sum-label{color:var(--muted)}
+.sum-val{font-weight:600;color:var(--text);font-family:var(--mono)}
+.sum-green{color:var(--success)}
+
+.btn-lanjut{width:100%;background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;border:none;padding:13px;border-radius:12px;font-size:.8rem;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font);transition:.15s}
+.btn-lanjut:disabled{opacity:.4;cursor:not-allowed}
+.btn-lanjut svg{width:14px;height:14px;stroke:#fff;fill:none}
+
+/* STEP 2 — QRIS PAGE */
+.step2-wrap{display:none}
+.qris-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px;margin-bottom:12px;text-align:center}
+.qris-header{display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:4px}
+.qris-header-title{font-size:.85rem;font-weight:800;color:var(--text)}
+.qris-header-badge{background:#e60000;color:#fff;font-size:.52rem;font-weight:800;padding:2px 8px;border-radius:99px}
+.qris-sub{font-size:.62rem;color:var(--muted);margin-bottom:18px}
+.qris-canvas-wrap{display:inline-flex;align-items:center;justify-content:center;background:#fff;border-radius:14px;padding:14px;border:2px solid #e60000;margin-bottom:14px}
+.qris-amount-label{font-size:.58rem;color:var(--muted);margin-bottom:2px}
+.qris-amount-val{font-family:var(--mono);font-size:1.2rem;font-weight:900;color:#e60000;margin-bottom:6px}
+.qris-merchant{font-size:.62rem;color:var(--muted2);margin-bottom:16px}
+.qris-merchant b{color:var(--text)}
+.btn-download-qr{display:inline-flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:99px;padding:7px 16px;font-size:.65rem;font-weight:700;color:var(--muted2);cursor:pointer;margin-bottom:0}
+.btn-download-qr:hover{border-color:var(--purple);color:var(--purple)}
+.btn-download-qr svg{width:13px;height:13px;stroke:currentColor;fill:none}
+
+/* ORDER INFO BOX */
+.order-info{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
+.order-info-title{font-size:.72rem;font-weight:800;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.order-info-title svg{width:13px;height:13px;stroke:var(--purple);fill:none}
+.oi-row{display:flex;justify-content:space-between;font-size:.68rem;padding:4px 0;border-bottom:1px solid var(--border)}
+.oi-row:last-child{border:none;padding-top:8px}
+.oi-row:last-child .oi-label{font-weight:800;font-size:.72rem;color:var(--text)}
+.oi-row:last-child .oi-val{font-weight:900;font-size:.85rem;color:var(--purple);font-family:var(--mono)}
+.oi-label{color:var(--muted)}
+.oi-val{font-weight:600;color:var(--text);font-family:var(--mono)}
+.oi-green{color:var(--success)}
+
+.btn-paid{width:100%;background:linear-gradient(135deg,var(--success),#05966a);color:#fff;border:none;padding:13px;border-radius:12px;font-size:.8rem;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font);margin-top:12px}
+.btn-paid svg{width:14px;height:14px;stroke:#fff;fill:none}
+.paid-note{font-size:.62rem;color:var(--muted);text-align:center;margin-top:8px;line-height:1.5}
+
+/* SUCCESS */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);z-index:500;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:.2s}
+.overlay.open{opacity:1;pointer-events:all}
+.overlay-box{background:var(--card);border:1px solid var(--border);border-radius:20px;max-width:360px;width:90%;padding:28px;text-align:center}
+.ok-icon{width:52px;height:52px;border-radius:50%;background:rgba(18,183,106,.1);display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+.ok-icon svg{width:24px;height:24px;stroke:var(--success);fill:none}
+.overlay-box h3{font-size:1rem;font-weight:800;margin-bottom:8px}
+.overlay-box p{font-size:.7rem;color:var(--muted);line-height:1.6;margin-bottom:18px}
+.btn-back{display:inline-block;background:var(--bg2);border:1px solid var(--border);padding:9px 20px;border-radius:99px;font-size:.7rem;font-weight:700;color:var(--text);text-decoration:none}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:8px 18px;border-radius:99px;font-size:.68rem;font-weight:600;z-index:9999;white-space:nowrap;animation:fu .25s}
+@keyframes fu{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+footer{border-top:1px solid var(--border);padding:16px 32px;text-align:center;color:var(--muted);font-size:.62rem}
+footer a{color:var(--purple);text-decoration:none;font-weight:600}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-logo">
+    <div class="logo-mark"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+    lapakID
+  </a>
+  <div class="nav-right">
+    <a href="index.html" class="nav-back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>Kembali</a>
+    <div class="theme-btn" id="themeBtn"><svg id="themeIcon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
+  </div>
+</nav>
+
+<div class="page-wrap">
+
+  <!-- STEPPER -->
+  <div class="stepper">
+    <div class="step active" id="step1El">
+      <div class="step-num" id="stepNum1">1</div>
+      <span>Informasi</span>
+    </div>
+    <div class="step-line" id="stepLine1"></div>
+    <div class="step" id="step2El">
+      <div class="step-num" id="stepNum2">2</div>
+      <span>Pembayaran</span>
+    </div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div id="step1Wrap">
+    <!-- ID BANNER -->
+    <div class="id-banner">
+      <div class="id-banner-icon"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div>
+      <div id="bannerContent"><span style="color:var(--muted);font-size:.75rem">Memuat data ID...</span></div>
+    </div>
+
+    <!-- DATA PEMBELI -->
+    <div class="form-section">
+      <h3><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Data Pembeli</h3>
+      <div class="field-row">
+        <div class="field">
+          <label>Nama Lengkap</label>
+          <input type="text" id="buyerName" placeholder="Nama kamu..."/>
+        </div>
+        <div class="field">
+          <label>Nomor WhatsApp</label>
+          <input type="tel" id="buyerPhone" placeholder="628xxxxxxxxx"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROMO -->
+    <div class="form-section">
+      <h3><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Kode Promo <span style="font-weight:400;color:var(--muted);font-size:.7rem">(opsional)</span></h3>
+      <div class="promo-row">
+        <div class="field">
+          <label>Kode Promo</label>
+          <input type="text" id="promoInput" placeholder="Contoh: LAPAK10" style="text-transform:uppercase"/>
+        </div>
+        <button class="btn-promo" onclick="validatePromo()">Terapkan</button>
+      </div>
+      <div class="promo-msg" id="promoMsg"></div>
+    </div>
+
+    <!-- METODE PEMBAYARAN -->
+    <div class="form-section">
+      <h3><svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Metode Pembayaran</h3>
+      <div class="method-grid">
+        <label class="method-opt method-qris selected">
+          <input type="radio" name="method" value="qris" checked/>
+          <div class="method-icon">QR</div>
+          <div class="method-info">
+            <div class="method-name">QRIS</div>
+            <div class="method-desc">GoPay, OVO, Dana, ShopeePay, m-banking semua bisa</div>
+          </div>
+          <div class="method-fee">Gratis</div>
+        </label>
+      </div>
+    </div>
+
+    <!-- SUMMARY STEP 1 -->
+    <div class="summary-box">
+      <div class="sum-row"><div class="sum-label">ID</div><div class="sum-val" id="sumId">—</div></div>
+      <div class="sum-row"><div class="sum-label">Tier</div><div class="sum-val" id="sumTier">—</div></div>
+      <div class="sum-row"><div class="sum-label">Harga dasar</div><div class="sum-val" id="sumBase">—</div></div>
+      <div class="sum-row" id="sumDiscRow" style="display:none"><div class="sum-label">Diskon promo</div><div class="sum-val sum-green" id="sumDisc">—</div></div>
+      <div class="sum-row"><div class="sum-label">Total</div><div class="sum-val" id="sumTotal">—</div></div>
+    </div>
+
+    <button class="btn-lanjut" id="btnLanjut" onclick="goStep2()" disabled>
+      <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      Lanjut Pembayaran
+    </button>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step2-wrap" id="step2Wrap">
+
+    <!-- QRIS CARD -->
+    <div class="qris-card">
+      <div class="qris-header">
+        <div class="qris-header-title">Bayar via QRIS</div>
+        <div class="qris-header-badge">QRIS</div>
+      </div>
+      <div class="qris-sub">Scan dengan e-wallet atau m-banking manapun • Berlaku 10 menit</div>
+      <div class="qris-canvas-wrap">
+        <div id="qrcode-canvas"></div>
+      </div>
+      <div class="qris-amount-label">Nominal Pembayaran</div>
+      <div class="qris-amount-val" id="qrisAmountVal">—</div>
+      <div class="qris-merchant">Penerima: <b>Aestroshop, GREGED</b> &bull; Cirebon</div>
+      <button class="btn-download-qr" onclick="downloadQR()">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download QR
+      </button>
+    </div>
+
+    <!-- ORDER INFO -->
+    <div class="order-info">
+      <div class="order-info-title"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2"/></svg>Detail Pesanan</div>
+      <div class="oi-row"><div class="oi-label">ID</div><div class="oi-val" id="oi-id">—</div></div>
+      <div class="oi-row"><div class="oi-label">Tier</div><div class="oi-val" id="oi-tier">—</div></div>
+      <div class="oi-row"><div class="oi-label">Harga dasar</div><div class="oi-val" id="oi-base">—</div></div>
+      <div class="oi-row" id="oi-disc-row" style="display:none"><div class="oi-label">Diskon</div><div class="oi-val oi-green" id="oi-disc">—</div></div>
+      <div class="oi-row"><div class="oi-label">Total</div><div class="oi-val" id="oi-total">—</div></div>
+    </div>
+
+    <button class="btn-paid" id="btnPaid" onclick="doSubmit()">
+      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      Saya Sudah Bayar
+    </button>
+    <div class="paid-note">Setelah klik tombol di atas, admin akan memverifikasi pembayaranmu dan menghubungi kamu via WhatsApp.</div>
+  </div>
+
+</div>
+
+<!-- SUCCESS -->
+<div class="overlay" id="successOverlay">
+  <div class="overlay-box">
+    <div class="ok-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+    <h3>Pesanan Diterima!</h3>
+    <p id="successMsg">Pesanan kamu berhasil dibuat. Admin akan segera menghubungi kamu via WhatsApp.</p>
+    <a href="index.html" class="btn-back">Kembali ke Beranda</a>
+  </div>
+</div>
+
+<footer>&copy; 2026 <a href="index.html">lapakID</a></footer>
+
+<script>
+const API = '/api';
+const DEFAULT_QRIS = '00020101021126610014COM.GO-JEK.WWW01189360091438891755300210G8891755300303UMI51440014ID.CO.QRIS.WWW0215ID10243566855930303UMI5204573253033605802ID5918Aestroshop, GREGED6007CIREBON61054518162070703A016304C52D';
+
+let settings={}, idDoc=null, promoDisc=0, promoCode='';
+const fmt = n => 'Rp '+Number(n).toLocaleString('id-ID');
+const TCLS = {low:'tier-low',medium:'tier-medium',high:'tier-high',legend:'tier-legend'};
+
+// ── QRIS ─────────────────────────────────────────────────────────────────────
+function crc16(str) {
+  let crc=0xFFFF;
+  for(let c=0;c<str.length;c++){
+    crc^=str.charCodeAt(c)<<8;
+    for(let i=0;i<8;i++) crc=((crc&0x8000)>0)?(crc<<1)^0x1021:crc<<1, crc&=0xFFFF;
+  }
+  return crc.toString(16).toUpperCase().padStart(4,'0');
+}
+function makeDynamicQRIS(qris,amount) {
+  let d=qris.replace('010211','010212').slice(0,-4);
+  const at='54'+String(amount).length.toString().padStart(2,'0')+amount;
+  d=d.replace('5802ID',at+'5802ID');
+  return d+crc16(d);
+}
+function renderQR(amount) {
+  const finalQRIS=makeDynamicQRIS(DEFAULT_QRIS,String(Math.round(amount)));
+  document.getElementById('qrcode-canvas').innerHTML='';
+  new QRCode(document.getElementById('qrcode-canvas'),{
+    text:finalQRIS,width:192,height:192,
+    colorDark:'#000000',colorLight:'#ffffff',
+    correctLevel:QRCode.CorrectLevel.M
+  });
+  document.getElementById('qrisAmountVal').textContent=fmt(amount);
+}
+function downloadQR() {
+  const canvas=document.querySelector('#qrcode-canvas canvas');
+  if (!canvas) { showToast('QR belum siap'); return; }
+  // buat canvas baru dengan padding dan info
+  const pad=24, infoH=80;
+  const c2=document.createElement('canvas');
+  c2.width=canvas.width+pad*2;
+  c2.height=canvas.height+pad*2+infoH;
+  const ctx=c2.getContext('2d');
+  ctx.fillStyle='#ffffff';
+  ctx.fillRect(0,0,c2.width,c2.height);
+  ctx.drawImage(canvas,pad,pad);
+  ctx.fillStyle='#101828';
+  ctx.font='bold 14px Arial';
+  ctx.textAlign='center';
+  ctx.fillText('lapakID — QRIS Payment',c2.width/2,canvas.height+pad+22);
+  ctx.font='13px Arial';
+  ctx.fillStyle='#667085';
+  ctx.fillText(document.getElementById('qrisAmountVal').textContent,c2.width/2,canvas.height+pad+42);
+  ctx.fillText('Aestroshop, GREGED • Cirebon',c2.width/2,canvas.height+pad+60);
+  const link=document.createElement('a');
+  link.download=`lapakID-QRIS-${idDoc?.number||'payment'}.png`;
+  link.href=c2.toDataURL('image/png');
+  link.click();
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+async function init() {
+  initTheme();
+  const params=new URLSearchParams(window.location.search);
+  const preId=params.get('id');
+  const r=await fetch(`${API}/settings`).catch(()=>null);
+  if(r&&r.ok){const d=await r.json();settings=d.data||{};}
+  if(preId) await loadId(preId);
+  else document.getElementById('bannerContent').innerHTML=`<span style="color:var(--muted);font-size:.75rem">Tidak ada ID dipilih. <a href="index.html" style="color:var(--purple);font-weight:700">Pilih ID dulu</a></span>`;
+}
+
+async function loadId(number) {
+  const r=await fetch(`${API}/ids/${encodeURIComponent(number)}`).catch(()=>null);
+  if(!r||!r.ok){document.getElementById('bannerContent').innerHTML=`<span style="color:var(--sold);font-size:.75rem">ID tidak ditemukan</span>`;return;}
+  const {data}=await r.json();
+  idDoc=data;
+  const prices=settings.prices||{low:125000,medium:450000,high:850000,legend:1350000};
+  const price=prices[data.tier]||0;
+  document.getElementById('bannerContent').innerHTML=`
+    <div class="id-banner-num">${data.number}</div>
+    <div class="id-banner-meta">
+      <span class="tier-pill ${TCLS[data.tier]}">${data.tier.toUpperCase()}</span>
+      <span class="id-price-tag">${fmt(price)}</span>
+      ${data.sold?'<span style="font-size:.6rem;color:var(--sold);font-weight:700">SUDAH TERJUAL</span>':''}
+    </div>`;
+  updateSummary();
+  checkSubmit();
+  if(data.sold){document.getElementById('btnLanjut').disabled=true;document.getElementById('btnLanjut').textContent='ID Ini Sudah Terjual';}
+}
+
+// ── PROMO ─────────────────────────────────────────────────────────────────────
+async function validatePromo() {
+  const code=document.getElementById('promoInput').value.trim().toUpperCase();
+  const msg=document.getElementById('promoMsg');
+  if(!code){showMsg(msg,'err','Masukkan kode promo terlebih dahulu');return;}
+  const r=await fetch(`${API}/promo/validate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})}).catch(()=>null);
+  if(!r){showMsg(msg,'err','Gagal menghubungi server');return;}
+  const d=await r.json();
+  if(d.success){
+    promoDisc=d.discount; promoCode=d.code;
+    showMsg(msg,'ok',`Promo aktif — diskon ${d.discount}% berhasil diterapkan`);
+  }else{
+    promoDisc=0; promoCode='';
+    showMsg(msg,'err',d.message||'Kode promo tidak valid');
+  }
+  updateSummary();
+}
+function showMsg(el,type,text){el.className='promo-msg '+type;el.textContent=text;el.style.display='block';}
+
+// ── SUMMARY ──────────────────────────────────────────────────────────────────
+function calcTotal() {
+  if(!idDoc)return 0;
+  const prices=settings.prices||{low:125000,medium:450000,high:850000,legend:1350000};
+  return Math.round((prices[idDoc.tier]||0)*(1-promoDisc/100));
+}
+function updateSummary() {
+  if(!idDoc)return;
+  const prices=settings.prices||{low:125000,medium:450000,high:850000,legend:1350000};
+  const base=prices[idDoc.tier]||0, disc=Math.round(base*promoDisc/100), total=base-disc;
+  document.getElementById('sumId').textContent=idDoc.number;
+  document.getElementById('sumTier').textContent=idDoc.tier.charAt(0).toUpperCase()+idDoc.tier.slice(1);
+  document.getElementById('sumBase').textContent=fmt(base);
+  document.getElementById('sumTotal').textContent=fmt(total);
+  const row=document.getElementById('sumDiscRow');
+  if(promoDisc>0){row.style.display='flex';document.getElementById('sumDisc').textContent=`-${fmt(disc)} (${promoDisc}%)`;}
+  else row.style.display='none';
+}
+function checkSubmit() {
+  const name=document.getElementById('buyerName').value.trim();
+  const phone=document.getElementById('buyerPhone').value.trim();
+  document.getElementById('btnLanjut').disabled=!(name&&phone&&idDoc&&!idDoc.sold);
+}
+document.querySelectorAll('#buyerName,#buyerPhone').forEach(el=>el.addEventListener('input',checkSubmit));
+
+// ── STEP 2 ────────────────────────────────────────────────────────────────────
+function goStep2() {
+  const name=document.getElementById('buyerName').value.trim();
+  const phone=document.getElementById('buyerPhone').value.trim();
+  if(!name||!phone||!idDoc){showToast('Lengkapi nama dan nomor WhatsApp');return;}
+
+  // Update stepper
+  document.getElementById('step1El').classList.remove('active'); document.getElementById('step1El').classList.add('done');
+  document.getElementById('stepNum1').innerHTML='<svg viewBox="0 0 24 24" width="12" height="12" stroke="#fff" fill="none"><polyline points="20 6 9 17 4 12"/></svg>';
+  document.getElementById('stepLine1').classList.add('done');
+  document.getElementById('step2El').classList.add('active');
+
+  // Show/hide
+  document.getElementById('step1Wrap').style.display='none';
+  document.getElementById('step2Wrap').style.display='block';
+
+  // Fill order info
+  const prices=settings.prices||{low:125000,medium:450000,high:850000,legend:1350000};
+  const base=prices[idDoc.tier]||0, disc=Math.round(base*promoDisc/100), total=base-disc;
+  document.getElementById('oi-id').textContent=idDoc.number;
+  document.getElementById('oi-tier').textContent=idDoc.tier.charAt(0).toUpperCase()+idDoc.tier.slice(1);
+  document.getElementById('oi-base').textContent=fmt(base);
+  document.getElementById('oi-total').textContent=fmt(total);
+  const dr=document.getElementById('oi-disc-row');
+  if(promoDisc>0){dr.style.display='flex';document.getElementById('oi-disc').textContent=`-${fmt(disc)} (${promoDisc}%)`;}
+  else dr.style.display='none';
+
+  // Render QR
+  renderQR(total);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ── SUBMIT ────────────────────────────────────────────────────────────────────
+async function doSubmit() {
+  const name=document.getElementById('buyerName').value.trim();
+  const phone=document.getElementById('buyerPhone').value.trim();
+  if(!name||!phone||!idDoc){showToast('Data tidak lengkap');return;}
+  const btn=document.getElementById('btnPaid');
+  btn.disabled=true; btn.textContent='Memproses...';
+  const r=await fetch(`${API}/payment`,{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({idNumber:idDoc.number,method:'qris',buyer:name,phone,promoCode})
+  }).catch(()=>null);
+  if(!r){btn.disabled=false;btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" stroke="#fff" fill="none"><polyline points="20 6 9 17 4 12"/></svg>Saya Sudah Bayar';showToast('Gagal terhubung ke server');return;}
+  const d=await r.json();
+  if(d.success){
+    document.getElementById('successMsg').textContent=`Pesanan ID ${idDoc.number} berhasil dibuat. Admin akan segera menghubungi kamu via WhatsApp di nomor ${phone}.`;
+    document.getElementById('successOverlay').classList.add('open');
+  }else{
+    btn.disabled=false;btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" stroke="#fff" fill="none"><polyline points="20 6 9 17 4 12"/></svg>Saya Sudah Bayar';
+    showToast(d.message||'Gagal memproses pesanan');
+  }
+}
+
+// ── THEME / TOAST ─────────────────────────────────────────────────────────────
+function initTheme(){
+  const dark=localStorage.getItem('lapakid_dark')==='1';
+  if(dark) document.body.classList.add('dark');
+  document.getElementById('themeIcon').innerHTML=dark
+    ?'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
+    :'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+}
+function showToast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2500);}
+document.getElementById('themeBtn').addEventListener('click',()=>{
+  const d=document.body.classList.toggle('dark');
+  localStorage.setItem('lapakid_dark',d?'1':'0');
+  document.getElementById('themeIcon').innerHTML=d
+    ?'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
+    :'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+});
+// Method select highlight
+document.querySelectorAll('.method-opt').forEach(opt=>{
+  opt.addEventListener('click',()=>{
+    document.querySelectorAll('.method-opt').forEach(o=>o.classList.remove('selected'));
+    opt.classList.add('selected');
+  });
+});
+init();
+</script>
+</body>
+</html>
